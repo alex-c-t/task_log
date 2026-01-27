@@ -1,6 +1,8 @@
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../models/task.dart';
+import '../services/database_service.dart';
+import '../utils/recurrence_helper.dart';
 import 'day_detail_screen.dart';
 
 /// A home screen providing a month-view calendar grid.
@@ -20,12 +22,51 @@ class _CalendarScreenState extends State<CalendarScreen> {
   /// The month currently being viewed by the user.
   late DateTime _focusedMonth;
 
+  /// A map of dates to the list of tasks active on that date.
+  /// This is pre-computed once per month change to ensure smooth grid rendering.
+  Map<DateTime, List<Task>> _taskMap = {};
+
   @override
   void initState() {
     super.initState();
     // Default to the current month on launch.
     final now = DateTime.now();
     _focusedMonth = DateTime(now.year, now.month);
+    _loadTasks();
+  }
+
+  /// Fetches all task definitions and computes their occurrences for the current month.
+  Future<void> _loadTasks() async {
+    final tasks = await DatabaseService.instance.getAllTasks();
+    if (mounted) {
+      _computeTaskMap(tasks);
+    }
+  }
+
+  /// Computes which tasks fall on which days of the currently focused month.
+  /// 
+  /// Logic:
+  /// 1. Iterates from the 1st to the last day of [_focusedMonth] (Option B).
+  /// 2. For each day, runs [RecurrenceHelper.isTaskActiveOnDate] against all tasks.
+  /// 3. Builds a map for quick O(1) lookup during grid rendering.
+  void _computeTaskMap(List<Task> allTasks) {
+    final daysInMonth = _getDaysInMonth(_focusedMonth);
+    final Map<DateTime, List<Task>> newMap = {};
+
+    for (int day = 1; day <= daysInMonth; day++) {
+      final date = DateTime(_focusedMonth.year, _focusedMonth.month, day);
+      final activeTasks = allTasks.where((task) {
+        return RecurrenceHelper.isTaskActiveOnDate(task, date);
+      }).toList();
+
+      if (activeTasks.isNotEmpty) {
+        newMap[date] = activeTasks;
+      }
+    }
+
+    setState(() {
+      _taskMap = newMap;
+    });
   }
 
   /// Navigates the calendar focus by a given number of months.
@@ -37,7 +78,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         _focusedMonth.year,
         _focusedMonth.month + delta,
       );
+      _taskMap.clear(); // Clear to avoid showing stale indicators while loading
     });
+    _loadTasks();
   }
 
   /// Calculates the total number of days in the currently focused month.
@@ -137,16 +180,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 date.month == now.month &&
                                 date.day == now.day;
 
+                // Retrieve pre-computed tasks for this specific date.
+                final dayTasks = _taskMap[date] ?? [];
+
                 return _CalendarDayCell(
                   dayNumber: dayNumber,
                   isToday: isToday,
-                  onTap: () {
-                    Navigator.push(
+                  tasks: dayTasks,
+                  onTap: () async {
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => DayDetailScreen(selectedDate: date),
                       ),
                     );
+                    _loadTasks(); // Refresh in case tasks were added/modified
                   },
                 );
               },
@@ -165,11 +213,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
 class _CalendarDayCell extends StatelessWidget {
   final int dayNumber;
   final bool isToday;
+  final List<Task> tasks;
   final VoidCallback onTap;
 
   const _CalendarDayCell({
     required this.dayNumber,
     required this.isToday,
+    required this.tasks,
     required this.onTap,
   });
 
@@ -187,6 +237,7 @@ class _CalendarDayCell extends StatelessWidget {
         padding: const EdgeInsets.all(4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               dayNumber.toString(),
@@ -195,10 +246,60 @@ class _CalendarDayCell extends StatelessWidget {
                 color: isToday ? Theme.of(context).colorScheme.primary : null,
               ),
             ),
-            // Cell is left empty for future Phase 2B task indicators
+            _TaskIndicators(tasks: tasks),
           ],
         ),
       ),
     );
+  }
+}
+
+/// Renders visual indicators for tasks on a specific day.
+/// 
+/// Shows up to 3 colored dots. If there are more than 3 tasks,
+/// displays a "+n" overflow label.
+class _TaskIndicators extends StatelessWidget {
+  final List<Task> tasks;
+
+  const _TaskIndicators({required this.tasks});
+
+  @override
+  Widget build(BuildContext context) {
+    if (tasks.isEmpty) return const SizedBox.shrink();
+
+    const int maxVisibleDots = 3;
+    final visibleTasks = tasks.take(maxVisibleDots).toList();
+    final overflowCount = tasks.length - maxVisibleDots;
+
+    return Row(
+      children: [
+        // Color dots
+        ...visibleTasks.map((task) => Container(
+          margin: const EdgeInsets.only(right: 2),
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            // Parse hex string back to color. Safety fallback to grey.
+            color: _parseHexColor(task.colorHex),
+          ),
+        )),
+        // Overflow label (+n)
+        if (overflowCount > 0)
+          Text(
+            '+$overflowCount',
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+      ],
+    );
+  }
+
+  /// Converts a hex string like "#E0E0E0" into a Flutter [Color] object.
+  Color _parseHexColor(String hex) {
+    try {
+      return Color(int.parse(hex.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      return Colors.grey;
+    }
   }
 }
