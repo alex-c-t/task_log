@@ -103,6 +103,60 @@ class DatabaseService {
   /// 
   /// If the [Task] does not provide a [colorHex], a default light grey
   /// ("#E0E0E0") is assigned here to guarantee data integrity.
+  /// Updates an existing [Task] definition.
+  ///
+  /// This method also ensures data integrity by deleting [TaskCompletion]
+  /// records that fall outside the new [startDate] and [endDate] range.
+  /// Completion records within the range are preserved exactly as-is.
+  Future<void> updateTask(Task task) async {
+    final db = await instance.database;
+    final map = task.toMap();
+    
+    await db.transaction((txn) async {
+      // 1. Update the task itself
+      await txn.update(
+        'tasks',
+        map,
+        where: 'id = ?',
+        whereArgs: [task.id],
+      );
+
+      // 2. Cleanup completions outside the new range
+      final startStr = task.startDate.toIso8601String().substring(0, 10);
+      final endStr = task.endDate.toIso8601String().substring(0, 10);
+
+      await txn.delete(
+        'completions',
+        where: 'taskId = ? AND (date < ? OR date > ?)',
+        whereArgs: [task.id, startStr, endStr],
+      );
+    });
+  }
+
+  /// Deletes a [Task] and all its associated completion history.
+  ///
+  /// This is a destructive operation that removes both the task record
+  /// and any [TaskCompletion] records linked to it.
+  Future<void> deleteTask(int taskId) async {
+    final db = await instance.database;
+    
+    await db.transaction((txn) async {
+      // 1. Delete all completion history
+      await txn.delete(
+        'completions',
+        where: 'taskId = ?',
+        whereArgs: [taskId],
+      );
+
+      // 2. Delete the task record
+      await txn.delete(
+        'tasks',
+        where: 'id = ?',
+        whereArgs: [taskId],
+      );
+    });
+  }
+
   Future<int> insertTask(Task task) async {
     final db = await instance.database;
     final map = task.toMap();

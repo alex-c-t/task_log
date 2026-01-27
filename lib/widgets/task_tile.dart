@@ -5,12 +5,14 @@ class TaskTile extends StatelessWidget {
   final String title;
   final bool isCompleted;
   final VoidCallback onToggle;
+  final VoidCallback? onEdit;
 
   const TaskTile({
     Key? key,
     required this.title,
     required this.isCompleted,
     required this.onToggle,
+    this.onEdit,
   }) : super(key: key);
 
   @override
@@ -25,6 +27,13 @@ class TaskTile extends StatelessWidget {
         ),
         value: isCompleted,
         onChanged: (_) => onToggle(),
+        secondary: onEdit != null
+            ? IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: onEdit,
+                tooltip: 'Edit Task',
+              )
+            : null,
       ),
     );
   }

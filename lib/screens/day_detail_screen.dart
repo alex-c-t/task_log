@@ -8,12 +8,15 @@ import '../utils/recurrence_helper.dart';
 import '../widgets/task_tile.dart';
 import 'add_task_screen.dart';
 
-/// A screen that displays the list of tasks for a specific calendar day.
-///
 /// This screen allows users to:
 /// 1. See all tasks active on the [selectedDate] based on recurrence rules.
 /// 2. Toggle the completion status of these tasks.
 /// 3. Navigate back to the calendar view.
+/// 4. Edit or delete task definitions via the edit icon (✏️).
+/// 
+/// **Note**: Editing is only available here to ensure users manage tasks
+/// in the context of the days they are active on. Deleting here removes
+/// all history for that task definition.
 class DayDetailScreen extends StatefulWidget {
   /// The date for which tasks are being displayed.
   final DateTime selectedDate;
@@ -143,6 +146,15 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                         title: task.title,
                         isCompleted: isCompleted,
                         onToggle: () => _toggleTask(task.id!),
+                        onEdit: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AddTaskScreen(taskToEdit: task),
+                            ),
+                          );
+                          _loadData(); // Refresh tasks
+                        },
                       );
                     },
                   ),
