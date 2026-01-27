@@ -58,6 +58,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         endDate: _endDate,
         recurrenceType: _recurrenceType,
         weeklyDays: _recurrenceType == RecurrenceType.weekly ? _selectedWeeklyDays : null,
+        colorHex: "#E0E0E0", // Default assigned at creation as per Phase 2.1
       );
 
       await DatabaseService.instance.insertTask(task);

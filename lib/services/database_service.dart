@@ -38,7 +38,8 @@ class DatabaseService {
         startDate TEXT NOT NULL,
         endDate TEXT NOT NULL,
         recurrenceType TEXT NOT NULL,
-        weeklyDays TEXT
+        weeklyDays TEXT,
+        colorHex TEXT NOT NULL
       )
     ''');
 
@@ -79,11 +80,19 @@ class DatabaseService {
     return result.map((json) => TaskCompletion.fromMap(json)).toList();
   }
 
+  /// Persists a new [Task] to the database.
+  /// 
+  /// If the [Task] does not provide a [colorHex], a default light grey
+  /// ("#E0E0E0") is assigned here to guarantee data integrity.
   Future<int> insertTask(Task task) async {
     final db = await instance.database;
-    // Handle weeklyDays conversion manually here for insertion
     final map = task.toMap();
-    // Start/End date are already strings in toMap
+    
+    // Ensure colorHex is non-null and not empty at persistence time.
+    if (map['colorHex'] == null || map['colorHex'].toString().isEmpty) {
+      map['colorHex'] = "#E0E0E0"; // Default light grey
+    }
+    
     return await db.insert('tasks', map);
   }
 
