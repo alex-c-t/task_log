@@ -80,6 +80,25 @@ class DatabaseService {
     return result.map((json) => TaskCompletion.fromMap(json)).toList();
   }
 
+  /// Fetches completion records for a specific date range.
+  ///
+  /// This is a read-only performance optimization used to avoid per-day
+  /// database queries when rendering views like the monthly calendar.
+  /// It does NOT alter or infer completion state.
+  Future<List<TaskCompletion>> getCompletionsForRange(DateTime start, DateTime end) async {
+    final db = await instance.database;
+    final startStr = start.toIso8601String().substring(0, 10);
+    final endStr = end.toIso8601String().substring(0, 10);
+
+    final result = await db.query(
+      'completions',
+      where: 'date >= ? AND date <= ?',
+      whereArgs: [startStr, endStr],
+    );
+
+    return result.map((json) => TaskCompletion.fromMap(json)).toList();
+  }
+
   /// Persists a new [Task] to the database.
   /// 
   /// If the [Task] does not provide a [colorHex], a default light grey

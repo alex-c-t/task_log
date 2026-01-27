@@ -26,6 +26,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
   /// This is pre-computed once per month change to ensure smooth grid rendering.
   Map<DateTime, List<Task>> _taskMap = {};
 
+  /// A lookup map for task completion status.
+  /// Key: "taskId-YYYY-MM-DD", Value: true if completed.
+  /// This is a read-only rendering optimization.
+  Map<String, bool> _completionMap = {};
+
   @override
   void initState() {
     super.initState();
@@ -36,10 +41,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   /// Fetches all task definitions and computes their occurrences for the current month.
+  /// Also performs a one-time optimized fetch of completion status for the month.
   Future<void> _loadTasks() async {
+    final firstDay = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
+    final lastDay = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0);
+
     final tasks = await DatabaseService.instance.getAllTasks();
+    final completions = await DatabaseService.instance.getCompletionsForRange(firstDay, lastDay);
+
     if (mounted) {
-      _computeTaskMap(tasks);
+      _computeTaskMap(tasks, completions);
     }
   }
 
@@ -49,9 +60,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
   /// 1. Iterates from the 1st to the last day of [_focusedMonth] (Option B).
   /// 2. For each day, runs [RecurrenceHelper.isTaskActiveOnDate] against all tasks.
   /// 3. Builds a map for quick O(1) lookup during grid rendering.
-  void _computeTaskMap(List<Task> allTasks) {
+  /// 4. Also populates the completion lookup map from pre-fetched records.
+  void _computeTaskMap(List<Task> allTasks, List<dynamic> completions) {
     final daysInMonth = _getDaysInMonth(_focusedMonth);
     final Map<DateTime, List<Task>> newMap = {};
+    final Map<String, bool> newCompletionMap = {};
+
+    // Build completion lookup key: "taskId-dateStr"
+    for (var completion in completions) {
+      final key = "${completion.taskId}-${completion.date}";
+      newCompletionMap[key] = completion.isCompleted;
+    }
 
     for (int day = 1; day <= daysInMonth; day++) {
       final date = DateTime(_focusedMonth.year, _focusedMonth.month, day);
@@ -66,6 +85,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     setState(() {
       _taskMap = newMap;
+      _completionMap = newCompletionMap;
     });
   }
 
@@ -187,6 +207,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   dayNumber: dayNumber,
                   isToday: isToday,
                   tasks: dayTasks,
+                  date: date,
+                  completionMap: _completionMap,
                   onTap: () async {
                     await Navigator.push(
                       context,
@@ -214,12 +236,16 @@ class _CalendarDayCell extends StatelessWidget {
   final int dayNumber;
   final bool isToday;
   final List<Task> tasks;
+  final DateTime date;
+  final Map<String, bool> completionMap;
   final VoidCallback onTap;
 
   const _CalendarDayCell({
     required this.dayNumber,
     required this.isToday,
     required this.tasks,
+    required this.date,
+    required this.completionMap,
     required this.onTap,
   });
 
@@ -246,7 +272,11 @@ class _CalendarDayCell extends StatelessWidget {
                 color: isToday ? Theme.of(context).colorScheme.primary : null,
               ),
             ),
-            _TaskIndicators(tasks: tasks),
+            _TaskIndicators(
+              tasks: tasks,
+              date: date,
+              completionMap: completionMap,
+            ),
           ],
         ),
       ),
@@ -254,14 +284,22 @@ class _CalendarDayCell extends StatelessWidget {
   }
 }
 
-/// Renders visual indicators for tasks on a specific day.
+/// Renders visual indicators for tasks on a specific day with completion state.
 /// 
-/// Shows up to 3 colored dots. If there are more than 3 tasks,
-/// displays a "+n" overflow label.
+/// Status is indicated using color brightness only:
+/// 1. Pending: Base color as stored in [Task.colorHex].
+/// 2. Completed (Grey): Rendered as Black.
+/// 3. Completed (Bright): Rendered as a darker shade (40% decrease in lightness).
 class _TaskIndicators extends StatelessWidget {
   final List<Task> tasks;
+  final DateTime date;
+  final Map<String, bool> completionMap;
 
-  const _TaskIndicators({required this.tasks});
+  const _TaskIndicators({
+    required this.tasks,
+    required this.date,
+    required this.completionMap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -270,20 +308,28 @@ class _TaskIndicators extends StatelessWidget {
     const int maxVisibleDots = 3;
     final visibleTasks = tasks.take(maxVisibleDots).toList();
     final overflowCount = tasks.length - maxVisibleDots;
+    final dateStr = date.toIso8601String().substring(0, 10);
 
     return Row(
       children: [
-        // Color dots
-        ...visibleTasks.map((task) => Container(
-          margin: const EdgeInsets.only(right: 2),
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            // Parse hex string back to color. Safety fallback to grey.
-            color: _parseHexColor(task.colorHex),
-          ),
-        )),
+        // Color dots with completion-based transformation
+        ...visibleTasks.map((task) {
+          final isCompleted = completionMap["${task.id}-$dateStr"] ?? false;
+          final baseColor = _parseHexColor(task.colorHex);
+          final displayColor = _isGrey(task.colorHex)
+              ? (isCompleted ? Colors.black : baseColor)
+              : (isCompleted ? _darken(baseColor, 0.4) : baseColor);
+
+          return Container(
+            margin: const EdgeInsets.only(right: 2),
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: displayColor,
+            ),
+          );
+        }),
         // Overflow label (+n)
         if (overflowCount > 0)
           Text(
@@ -292,6 +338,17 @@ class _TaskIndicators extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// Checks if a hex color string represents the default light grey.
+  bool _isGrey(String hex) => hex.trim().toUpperCase() == "#E0E0E0";
+
+  /// Deterministically darkens a color by a fixed percentage.
+  /// 
+  /// Preserves the hue while decreasing lightness.
+  Color _darken(Color color, double amount) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
   }
 
   /// Converts a hex string like "#E0E0E0" into a Flutter [Color] object.
