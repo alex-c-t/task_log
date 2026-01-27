@@ -8,21 +8,31 @@ import '../utils/recurrence_helper.dart';
 import '../widgets/task_tile.dart';
 import 'add_task_screen.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+/// A screen that displays the list of tasks for a specific calendar day.
+///
+/// This screen allows users to:
+/// 1. See all tasks active on the [selectedDate] based on recurrence rules.
+/// 2. Toggle the completion status of these tasks.
+/// 3. Navigate back to the calendar view.
+class DayDetailScreen extends StatefulWidget {
+  /// The date for which tasks are being displayed.
+  final DateTime selectedDate;
+
+  const DayDetailScreen({super.key, required this.selectedDate});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<DayDetailScreen> createState() => _DayDetailScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  DateTime _currentDate = DateTime.now();
+class _DayDetailScreenState extends State<DayDetailScreen> {
+  late DateTime _currentDate;
   List<Task> _allTasks = [];
   Map<int, bool> _completionStatus = {}; // taskId -> isCompleted
 
   @override
   void initState() {
     super.initState();
+    _currentDate = widget.selectedDate;
     _loadData();
   }
 
