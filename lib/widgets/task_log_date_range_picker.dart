@@ -2,56 +2,59 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../utils/calendar_config.dart';
 
-/// A custom date range picker dialog that enforces strict, forward-only selection rules.
+/// A constrained single-date picker dialog.
 ///
-/// **Design Constraints (Phase 2.6.3):**
-/// 1. **Immutable Start Date**: The [startDate] is passed in as a required argument and cannot be changed.
-/// 2. **Forward-Only**: Users can only select an end date that is equal to or after the [startDate].
-/// 3. **Visuals**:
-///    - Start Date: Solid primary color circle.
-///    - End Date: Solid primary color circle.
-///    - Range: Rectangular highlight with reduced opacity.
-///    - Disabled (Before Start): Muted text, non-interactive.
-/// 4. **Weekday Consistency**: Uses [CalendarConfig] for headers and grid alignment.
-class TaskLogDateRangePicker extends StatefulWidget {
-  final DateTime startDate;
-  final DateTime? initialEndDate;
+/// **Design Logic (Phase 2.6.3 Refined & 2.6.4):**
+/// - **Single Selection**: Selects ONE date at a time.
+/// - **Constraints**: Supports a [firstDate] to enforce "End >= Start" logic.
+/// - **Visuals**: 
+///   - Primary Circle for selection AND context date.
+///   - Muted text for disabled dates.
+///   - Rectangular highlight for the range between selected and context dates.
+/// - **UX**: Always opens to the [initialDate]'s month.
+class TaskLogDatePicker extends StatefulWidget {
+  final DateTime initialDate;
+  final DateTime? firstDate;
+  final DateTime? contextDate;
 
-  const TaskLogDateRangePicker({
+  const TaskLogDatePicker({
     super.key,
-    required this.startDate,
-    this.initialEndDate,
+    required this.initialDate,
+    this.firstDate,
+    this.contextDate,
   });
 
   /// Displays the picker as a dialog.
-  static Future<DateTimeRange?> show(
+  /// Returns the selected [DateTime], or null if canceled.
+  static Future<DateTime?> show(
     BuildContext context, {
-    required DateTime startDate,
-    DateTime? initialEndDate,
+    required DateTime initialDate,
+    DateTime? firstDate,
+    DateTime? contextDate,
   }) {
-    return showDialog<DateTimeRange>(
+    return showDialog<DateTime>(
       context: context,
-      builder: (context) => TaskLogDateRangePicker(
-        startDate: startDate,
-        initialEndDate: initialEndDate,
+      builder: (context) => TaskLogDatePicker(
+        initialDate: initialDate,
+        firstDate: firstDate,
+        contextDate: contextDate,
       ),
     );
   }
 
   @override
-  State<TaskLogDateRangePicker> createState() => _TaskLogDateRangePickerState();
+  State<TaskLogDatePicker> createState() => _TaskLogDatePickerState();
 }
 
-class _TaskLogDateRangePickerState extends State<TaskLogDateRangePicker> {
+class _TaskLogDatePickerState extends State<TaskLogDatePicker> {
   late DateTime _focusedMonth;
-  late DateTime? _endSelection;
+  late DateTime _selectedDate;
 
   @override
   void initState() {
     super.initState();
-    // Start focused on the startDate's month.
-    _focusedMonth = DateTime(widget.startDate.year, widget.startDate.month);
-    _endSelection = widget.initialEndDate;
+    _selectedDate = widget.initialDate;
+    _focusedMonth = DateTime(_selectedDate.year, _selectedDate.month);
   }
 
   void _changeMonth(int delta) {
@@ -64,23 +67,20 @@ class _TaskLogDateRangePickerState extends State<TaskLogDateRangePicker> {
   }
 
   void _onDateTap(DateTime date) {
-    // Forward-only constraint check.
-    if (date.isBefore(DateTime(widget.startDate.year, widget.startDate.month, widget.startDate.day))) {
-      return;
+    // Constraint Constraint: Cannot select before firstDate
+    if (widget.firstDate != null) {
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final constraint = DateTime(widget.firstDate!.year, widget.firstDate!.month, widget.firstDate!.day);
+      if (startOfDay.isBefore(constraint)) return;
     }
 
     setState(() {
-      _endSelection = date;
+      _selectedDate = date;
     });
   }
 
   void _confirm() {
-    if (_endSelection == null) {
-      // If no end selected, default to single-day range (Start == End)
-       Navigator.of(context).pop(DateTimeRange(start: widget.startDate, end: widget.startDate));
-    } else {
-       Navigator.of(context).pop(DateTimeRange(start: widget.startDate, end: _endSelection!));
-    }
+    Navigator.of(context).pop(_selectedDate);
   }
 
   int _getDaysInMonth(DateTime monthDate) {
@@ -144,7 +144,7 @@ class _TaskLogDateRangePickerState extends State<TaskLogDateRangePicker> {
 
           // Calendar Grid
           SizedBox(
-            height: 300, // Fixed height for grid container
+            height: 300,
             child: GridView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -159,27 +159,35 @@ class _TaskLogDateRangePickerState extends State<TaskLogDateRangePicker> {
                 final dayNumber = index - offset + 1;
                 final date = DateTime(_focusedMonth.year, _focusedMonth.month, dayNumber);
                 
-                // --- Visual State Logic ---
-                final isStart = _isSameDay(date, widget.startDate);
-                final isEnd = _endSelection != null && _isSameDay(date, _endSelection!);
+                final isSelected = _isSameDay(date, _selectedDate);
+                final isContext = widget.contextDate != null && _isSameDay(date, widget.contextDate!);
                 
-                // Check in-range: Start < Date < End
+                // Visual Range Logic
                 bool isInRange = false;
-                if (_endSelection != null) {
-                   // Normalize to start of day for accurate comparison
-                   final s = DateTime(widget.startDate.year, widget.startDate.month, widget.startDate.day);
-                   final e = DateTime(_endSelection!.year, _endSelection!.month, _endSelection!.day);
-                   final d = DateTime(date.year, date.month, date.day);
-                   isInRange = d.isAfter(s) && d.isBefore(e);
+                if (widget.contextDate != null) {
+                  final s = _selectedDate.isBefore(widget.contextDate!) ? _selectedDate : widget.contextDate!;
+                  final e = _selectedDate.isBefore(widget.contextDate!) ? widget.contextDate! : _selectedDate;
+                  
+                  // Normalize for comparison
+                  final d = DateTime(date.year, date.month, date.day);
+                  final start = DateTime(s.year, s.month, s.day);
+                  final end = DateTime(e.year, e.month, e.day);
+                  
+                  isInRange = d.isAfter(start) && d.isBefore(end);
                 }
-
-                // Disabled: Date < Start
-                final isDisabled = date.isBefore(DateTime(widget.startDate.year, widget.startDate.month, widget.startDate.day));
+                
+                // Disabled Logic
+                bool isDisabled = false;
+                if (widget.firstDate != null) {
+                   final startOfDay = DateTime(date.year, date.month, date.day);
+                   final constraint = DateTime(widget.firstDate!.year, widget.firstDate!.month, widget.firstDate!.day);
+                   if (startOfDay.isBefore(constraint)) isDisabled = true;
+                }
 
                 BoxDecoration? decoration;
                 Color textColor = Colors.black;
 
-                if (isStart || isEnd) {
+                if (isSelected || isContext) {
                   decoration = BoxDecoration(
                     color: Theme.of(context).colorScheme.primary,
                     shape: BoxShape.circle,
@@ -192,7 +200,7 @@ class _TaskLogDateRangePickerState extends State<TaskLogDateRangePicker> {
                     borderRadius: BorderRadius.circular(4),
                   );
                 } else if (isDisabled) {
-                   textColor = Colors.grey;
+                   textColor = Colors.grey.shade400; // Muted
                 }
 
                 return GestureDetector(
@@ -209,8 +217,8 @@ class _TaskLogDateRangePickerState extends State<TaskLogDateRangePicker> {
               },
             ),
           ),
-          
-          // Action Buttons
+         
+          // buttons
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(

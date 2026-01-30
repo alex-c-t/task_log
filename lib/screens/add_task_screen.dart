@@ -36,8 +36,8 @@ class AddTaskScreen extends StatefulWidget {
 class _AddTaskScreenState extends State<AddTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
-  late DateTime _startDate;
-  late DateTime _endDate;
+  DateTime? _startDate;
+  DateTime? _endDate;
   late RecurrenceType _recurrenceType;
   late List<int> _selectedWeeklyDays;
   late String _selectedColor;
@@ -71,7 +71,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     // UX logic: Use task's date, or initial context date, or current time
     _startDate = editTask?.startDate ?? widget.initialStartDate ?? DateTime.now();
     
-    _endDate = editTask?.endDate ?? _startDate.add(const Duration(days: 30));
+    _endDate = editTask?.endDate ?? _startDate!.add(const Duration(days: 30));
     _recurrenceType = editTask?.recurrenceType ?? RecurrenceType.daily;
     _selectedWeeklyDays = List.of(editTask?.weeklyDays ?? []);
     _selectedColor = editTask?.colorHex ?? _colorPalette.first;
@@ -84,19 +84,34 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   }
 
   Future<void> _selectDate(BuildContext context, bool isStart) async {
-    // Open custom picker. 
-    // Start Date context is ALWAYS the current _startDate.
-    // This enforces the "Immutable Start" logic where the user can only extend the end date relative to the context.
-    final DateTimeRange? pickedRange = await TaskLogDateRangePicker.show(
+    // Determine initial focused date and constraints
+    final DateTime? initial = isStart ? _startDate : _endDate;
+    // For End Date, create constraints based on Start Date
+    final DateTime? constraint = isStart ? null : _startDate;
+    // Context Date (the "other" date) for visual highlighting
+    final DateTime? visualContext = isStart ? _endDate : _startDate;
+    
+    // Fallback focus for null fields (should rarely happen for start due to init logic)
+    final DateTime focusDate = initial ?? (isStart ? DateTime.now() : _startDate ?? DateTime.now());
+
+    final DateTime? picked = await TaskLogDatePicker.show(
       context,
-      startDate: _startDate, 
-      initialEndDate: _endDate,
+      initialDate: focusDate,
+      firstDate: constraint,
+      contextDate: visualContext,
     );
 
-    if (pickedRange != null) {
+    if (picked != null) {
       setState(() {
-        _startDate = pickedRange.start;
-        _endDate = pickedRange.end;
+        if (isStart) {
+          _startDate = picked;
+          // Invalidation Rule: If Start moves past End, End becomes invalid (null)
+          if (_endDate != null && picked.isAfter(_endDate!)) {
+            _endDate = null;
+          }
+        } else {
+          _endDate = picked;
+        }
       });
     }
   }
@@ -104,6 +119,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   /// Persists the task to the database (INSERT or UPDATE).
   void _saveTask() async {
     if (_formKey.currentState!.validate()) {
+      // Form validation ensures these are not null via button state, but explicit check adds safety.
+      if (_startDate == null || _endDate == null) return;
+
       if (_recurrenceType == RecurrenceType.weekly && _selectedWeeklyDays.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please select at least one day for weekly recurrence')),
@@ -114,8 +132,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       final task = Task(
         id: widget.taskToEdit?.id,
         title: _titleController.text,
-        startDate: _startDate,
-        endDate: _endDate,
+        startDate: _startDate!,
+        endDate: _endDate!,
         recurrenceType: _recurrenceType,
         weeklyDays: _recurrenceType == RecurrenceType.weekly ? _selectedWeeklyDays : null,
         colorHex: _selectedColor,
@@ -249,14 +267,14 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                   Expanded(
                     child: ListTile(
                       title: const Text('Start Date'),
-                      subtitle: Text(DateFormat.yMMMd().format(_startDate)),
+                      subtitle: Text(_startDate != null ? DateFormat.yMMMd().format(_startDate!) : 'Select Date'),
                       onTap: () => _selectDate(context, true),
                     ),
                   ),
                   Expanded(
                     child: ListTile(
                       title: const Text('End Date'),
-                      subtitle: Text(DateFormat.yMMMd().format(_endDate)),
+                      subtitle: Text(_endDate != null ? DateFormat.yMMMd().format(_endDate!) : 'Select Date'),
                       onTap: () => _selectDate(context, false),
                     ),
                   ),
@@ -303,7 +321,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               ],
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _saveTask,
+                onPressed: (_startDate != null && _endDate != null) ? _saveTask : null,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(50),
                 ),
