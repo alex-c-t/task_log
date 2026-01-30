@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/task.dart';
-import '../utils/calendar_config.dart';
 import '../services/database_service.dart';
+import '../widgets/task_log_date_range_picker.dart';
 
 /// A screen for creating or editing [Task] definitions.
 ///
@@ -84,21 +84,19 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   }
 
   Future<void> _selectDate(BuildContext context, bool isStart) async {
-    final DateTime initialDate = isStart ? _startDate : _endDate;
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-      locale: CalendarConfig.getLocale(),
+    // Open custom picker. 
+    // Start Date context is ALWAYS the current _startDate.
+    // This enforces the "Immutable Start" logic where the user can only extend the end date relative to the context.
+    final DateTimeRange? pickedRange = await TaskLogDateRangePicker.show(
+      context,
+      startDate: _startDate, 
+      initialEndDate: _endDate,
     );
-    if (picked != null) {
+
+    if (pickedRange != null) {
       setState(() {
-        if (isStart) {
-          _startDate = picked;
-        } else {
-          _endDate = picked;
-        }
+        _startDate = pickedRange.start;
+        _endDate = pickedRange.end;
       });
     }
   }
