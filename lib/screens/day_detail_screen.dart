@@ -1,6 +1,6 @@
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'main_screen.dart';
 import '../models/task_comment.dart';
 import '../models/task.dart';
 import '../services/database_service.dart';
@@ -156,6 +156,12 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Task Log'),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => MainScreen.scaffoldKey.currentState?.openDrawer(),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),

@@ -19,6 +19,12 @@ class DatabaseService {
     return _database!;
   }
 
+  Future<void> close() async {
+    final db = await instance.database;
+    _database = null;
+    await db.close();
+  }
+
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);

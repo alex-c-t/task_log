@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'main_screen.dart';
 import '../models/task.dart';
 import '../services/database_service.dart';
 import '../utils/recurrence_helper.dart';
@@ -124,6 +125,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Task Log'),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => MainScreen.scaffoldKey.currentState?.openDrawer(),
+          ),
+        ),
       ),
       body: Column(
         children: [

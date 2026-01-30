@@ -1,15 +1,18 @@
-
-import 'package:flutter_localizations/flutter_localizations.dart';
-
 import 'package:flutter/material.dart';
-import 'screens/calendar_screen.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
+import 'providers/theme_provider.dart';
+import 'screens/main_screen.dart';
 
 /// The root widget of the Task Log application.
-///
-/// This widget initializes the [MaterialApp] and defines the theme
-/// and the initial screen of the app, which is the [CalendarScreen].
-void main() {
-  runApp(const TaskLogApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const TaskLogApp(),
+    ),
+  );
 }
 
 class TaskLogApp extends StatelessWidget {
@@ -17,15 +20,23 @@ class TaskLogApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return MaterialApp(
       title: 'Task Log',
+      themeMode: themeProvider.themeMode,
       theme: ThemeData(
         useMaterial3: true,
-        // Using a soft color scheme as per Phase 1 standards.
         colorSchemeSeed: Colors.blue,
+        brightness: Brightness.light,
       ),
-      // The CalendarScreen is now the entry point as per Phase 2A requirements.
-      home: const CalendarScreen(),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.blue,
+        brightness: Brightness.dark,
+      ),
+      // MainScreen handles the Hybrid Navigation (Tabs + Drawer)
+      home: const MainScreen(),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
