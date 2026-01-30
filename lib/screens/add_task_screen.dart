@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/task.dart';
+import '../utils/calendar_config.dart';
 import '../services/database_service.dart';
 
 /// A screen for creating or editing [Task] definitions.
@@ -83,11 +84,13 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   }
 
   Future<void> _selectDate(BuildContext context, bool isStart) async {
+    final DateTime initialDate = isStart ? _startDate : _endDate;
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: isStart ? _startDate : _endDate,
+      initialDate: initialDate,
       firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+      lastDate: DateTime(2101),
+      locale: CalendarConfig.getLocale(),
     );
     if (picked != null) {
       setState(() {

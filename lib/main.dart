@@ -1,4 +1,6 @@
 
+import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'package:flutter/material.dart';
 import 'screens/calendar_screen.dart';
 
@@ -24,6 +26,15 @@ class TaskLogApp extends StatelessWidget {
       ),
       // The CalendarScreen is now the entry point as per Phase 2A requirements.
       home: const CalendarScreen(),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', 'US'),
+        Locale('en', 'GB'),
+      ],
     );
   }
 }

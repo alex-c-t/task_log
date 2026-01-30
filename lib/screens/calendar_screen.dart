@@ -4,6 +4,7 @@ import '../models/task.dart';
 import '../services/database_service.dart';
 import '../utils/recurrence_helper.dart';
 import 'day_detail_screen.dart';
+import '../utils/calendar_config.dart';
 
 /// A home screen providing a month-view calendar grid.
 ///
@@ -109,20 +110,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return DateTime(monthDate.year, monthDate.month + 1, 0).day;
   }
 
-  /// Returns the weekday index (1-7, Mon-Sun) for the first day of the month.
   int _getFirstWeekdayOfMonth(DateTime monthDate) {
     return DateTime(monthDate.year, monthDate.month, 1).weekday;
   }
-
-  @override
   Widget build(BuildContext context) {
     final daysInMonth = _getDaysInMonth(_focusedMonth);
     final firstWeekday = _getFirstWeekdayOfMonth(_focusedMonth);
     
     // Calculate total items needed for the grid.
-    // firstWeekday: 1=Mon ... 7=Sun.
-    // If first day is Tuesday (2), we need 1 empty cell at the start (offset = firstWeekday - 1).
-    final offset = firstWeekday - 1;
+    final offset = CalendarConfig.getGridOffset(firstWeekday);
     final totalCells = daysInMonth + offset;
 
     return Scaffold(
@@ -159,9 +155,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: Row(
-              children: List.generate(7, (index) {
-                // 1=Mon, 7=Sun logic
-                final dayName = DateFormat.E().format(DateTime(2024, 1, index + 1));
+              children: CalendarConfig.getWeekdayLabels().map((dayName) {
                 return Expanded(
                   child: Center(
                     child: Text(
@@ -170,7 +164,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ),
                   ),
                 );
-              }),
+              }).toList(),
             ),
           ),
 
