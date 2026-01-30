@@ -260,7 +260,7 @@ class _CalendarDayCell extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           color: isToday ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3) : null,
         ),
-        padding: const EdgeInsets.all(2),
+        padding: const EdgeInsets.all(1),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -319,12 +319,73 @@ class _TaskIndicators extends StatelessWidget {
           final isCompleted = completionMap["${task.id}-$dateStr"] ?? false;
           final baseColor = _parseHexColor(task.colorHex);
 
+          // Text Fade Logic
+          final title = task.title;
+          const int nOpaque = 8;
+          const int mFaded = 4;
+          
+          String part1 = "";
+          String part2 = "";
+
+          if (title.length <= nOpaque) {
+            part1 = title;
+          } else {
+            part1 = title.substring(0, nOpaque);
+            if (title.length <= nOpaque + mFaded) {
+              part2 = title.substring(nOpaque);
+            } else {
+              part2 = title.substring(nOpaque, nOpaque + mFaded);
+            }
+          }
+
+          final textColor = _getContrastingTextColor(baseColor);
+          // If task is completed, the bar itself is faded (0.2). 
+          // Text contrast should calculate against the effective color or just base? 
+          // Plan says "Text fade is independent of task completion state", 
+          // and "Bar color and opacity logic ... same".
+          // However, if bar is 0.2 opacity, white text might be invisible if background is white.
+          // But strict rules say "Bar color ... logic remain EXACTLY".
+          // We will assume standard contrast against the base color usually works, 
+          // or just strictly follow the "contrast with bar color" rule. 
+          // Since the bar is transparent-ish when completed, text might need to be darker?
+          // Simplest interpretation: Contrast against the *base* color, but if the bar is very light due to opacity, 
+          // functionality might vary. 
+          // However, let's stick to the base color for contrast decision to be stable.
+
           return Container(
             margin: const EdgeInsets.only(bottom: 2),
-            height: 7,
+            height: 9,
+            padding: const EdgeInsets.only(left: 2),
+            alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(2),
               color: baseColor.withOpacity(isCompleted ? 0.2 : 1.0),
+            ),
+            child: RichText(
+              overflow: TextOverflow.clip,
+              maxLines: 1,
+              text: TextSpan(
+                style: TextStyle(
+                  fontSize: 8, 
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
+                ),
+                children: [
+                  TextSpan(
+                    text: part1,
+                    style: TextStyle(
+                      color: textColor.withOpacity(1.0),
+                    ),
+                  ),
+                  if (part2.isNotEmpty)
+                    TextSpan(
+                      text: part2,
+                      style: TextStyle(
+                        color: textColor.withOpacity(0.3),
+                      ),
+                    ),
+                ],
+              ),
             ),
           );
         }),
@@ -347,5 +408,13 @@ class _TaskIndicators extends StatelessWidget {
     } catch (_) {
       return Colors.grey;
     }
+  }
+
+  /// Returns Black or White text color depending on background luminance.
+  Color _getContrastingTextColor(Color color) {
+    // Relative luminance: 0.2126 * R + 0.7152 * G + 0.0722 * B
+    // Flutter's computeLuminance() does exactly this.
+    // Threshold 0.5 is standard. white (>0.5) -> black text. dark (<0.5) -> white text.
+    return color.computeLuminance() > 0.5 ? Colors.black : Colors.white;
   }
 }
