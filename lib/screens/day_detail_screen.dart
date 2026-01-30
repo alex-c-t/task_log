@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../models/task_comment.dart';
 import '../models/task.dart';
 import '../services/database_service.dart';
 import '../utils/recurrence_helper.dart';
@@ -30,6 +31,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   late DateTime _currentDate;
   List<Task> _allTasks = [];
   Map<int, bool> _completionStatus = {}; // taskId -> isCompleted
+  Map<int, TaskComment> _commentsMap = {}; // taskId -> TaskComment
 
   @override
   void initState() {
@@ -45,18 +47,21 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       setState(() {
         _allTasks = tasks;
       });
-      // 2. Fetch completions for current date
-      _loadCompletionsForDate(_currentDate);
+      // 2. Fetch completions & comments for current date
+      _loadDayContext(_currentDate);
     }
   }
 
-  Future<void> _loadCompletionsForDate(DateTime date) async {
+  Future<void> _loadDayContext(DateTime date) async {
     final completions = await DatabaseService.instance.getCompletionsForDate(date);
+    final comments = await DatabaseService.instance.getCommentsMapForDate(date);
+    
     if (mounted) {
       setState(() {
         _completionStatus = {
           for (var c in completions) c.taskId: c.isCompleted,
         };
+        _commentsMap = comments;
       });
     }
   }
@@ -65,11 +70,12 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     setState(() {
       _currentDate = _currentDate.add(Duration(days: days));
       _completionStatus.clear(); // Clear to prevent stale state flicker
+      _commentsMap.clear();
     });
-    _loadCompletionsForDate(_currentDate);
+    _loadDayContext(_currentDate);
   }
 
-  void _toggleTask(int taskId) async {
+  Future<void> _toggleTask(int taskId) async {
     // Optimistic UI update
     final currentStatus = _completionStatus[taskId] ?? false;
     setState(() {
@@ -89,6 +95,55 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         );
       }
     }
+  }
+
+  Future<void> _handleComment(Task task) async {
+    final existingComment = _commentsMap[task.id];
+    final controller = TextEditingController(text: existingComment?.text ?? '');
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(existingComment == null ? 'Add Comment' : 'Edit Comment'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'Enter comment...',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final text = controller.text.trim();
+                
+                if (text.isEmpty) {
+                  // Treat empty as delete
+                  if (existingComment != null) {
+                     await DatabaseService.instance.deleteComment(task.id!, _currentDate);
+                  }
+                } else {
+                  // Upsert
+                  await DatabaseService.instance.saveComment(task.id!, _currentDate, text);
+                }
+                
+                // MANDATORY: Re-fetch source of truth
+                _loadDayContext(_currentDate);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -143,9 +198,13 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                     itemBuilder: (context, index) {
                       final task = activeTasks[index];
                       final isCompleted = _completionStatus[task.id] ?? false;
+                      final comment = _commentsMap[task.id];
+                      
                       return TaskTile(
                         title: task.title,
                         isCompleted: isCompleted,
+                        comment: comment?.text,
+                        onCommentTap: () => _handleComment(task),
                         onToggle: () => _toggleTask(task.id!),
                         onEdit: () async {
                           await Navigator.push(

@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/task.dart';
 import '../models/task_completion.dart';
+import '../models/task_comment.dart';
 
 import 'package:uuid/uuid.dart';
 
@@ -329,5 +330,89 @@ class DatabaseService {
         });
       }
     });
+  }
+
+  // COMMENTS API (Phase 2.5.1)
+
+  /// Fetches active (non-deleted) comments for a specific date.
+  /// Returns a map of taskId -> TaskComment for O(1) lookup.
+  Future<Map<int, TaskComment>> getCommentsMapForDate(DateTime date) async {
+    final db = await instance.database;
+    final dateStr = date.toIso8601String().substring(0, 10);
+    
+    final result = await db.query(
+      'comments',
+      where: 'date = ? AND isDeleted = 0',
+      whereArgs: [dateStr],
+    );
+
+    final Map<int, TaskComment> commentMap = {};
+    for (var json in result) {
+      final comment = TaskComment.fromMap(json);
+      commentMap[comment.taskId] = comment;
+    }
+    return commentMap;
+  }
+
+  /// Upserts a comment for a task on a specific date.
+  /// 
+  /// - Updates existing record (re-enabling it if it was soft deleted)
+  /// - Inserts new record if none exists for (taskId, date)
+  /// - Always updates updatedAt to now (UTC)
+  Future<void> saveComment(int taskId, DateTime date, String text) async {
+    final db = await instance.database;
+    final dateStr = date.toIso8601String().substring(0, 10);
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    await db.transaction((txn) async {
+      // Check if ANY record exists (including deleted ones)
+      final existing = await txn.query(
+        'comments',
+        where: 'taskId = ? AND date = ?',
+        whereArgs: [taskId, dateStr],
+      );
+
+      if (existing.isNotEmpty) {
+        // Update existing record
+        await txn.update(
+          'comments',
+          {
+            'text': text,
+            'isDeleted': 0,
+            'updatedAt': now
+          },
+          where: 'taskId = ? AND date = ?',
+          whereArgs: [taskId, dateStr],
+        );
+      } else {
+        // Insert new record
+        await txn.insert('comments', {
+          'taskId': taskId,
+          'date': dateStr,
+          'text': text,
+          'uuid': const Uuid().v4(),
+          'createdAt': now,
+          'updatedAt': now,
+          'isDeleted': 0
+        });
+      }
+    });
+  }
+
+  /// Soft deletes a comment for a transaction.
+  Future<void> deleteComment(int taskId, DateTime date) async {
+    final db = await instance.database;
+    final dateStr = date.toIso8601String().substring(0, 10);
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    await db.update(
+      'comments',
+      {
+        'isDeleted': 1,
+        'updatedAt': now
+      },
+      where: 'taskId = ? AND date = ?',
+      whereArgs: [taskId, dateStr],
+    );
   }
 }
