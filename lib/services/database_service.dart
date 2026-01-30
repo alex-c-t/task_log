@@ -4,6 +4,8 @@ import 'package:path/path.dart';
 import '../models/task.dart';
 import '../models/task_completion.dart';
 
+import 'package:uuid/uuid.dart';
+
 class DatabaseService {
   static final DatabaseService instance = DatabaseService._init();
   static Database? _database;
@@ -22,8 +24,9 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
   }
 
@@ -37,21 +40,110 @@ class DatabaseService {
         endDate TEXT NOT NULL,
         recurrenceType TEXT NOT NULL,
         weeklyDays TEXT,
-        colorHex TEXT NOT NULL
+        colorHex TEXT NOT NULL,
+        uuid TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        isDeleted INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
     // COMPLETIONS TABLE
-    // FIX 1: Unique constraint on (taskId, date)
     await db.execute('''
       CREATE TABLE completions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         taskId INTEGER NOT NULL,
         date TEXT NOT NULL,
         isCompleted INTEGER NOT NULL,
+        uuid TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        isDeleted INTEGER NOT NULL DEFAULT 0,
         UNIQUE(taskId, date)
       )
     ''');
+
+    // COMMENTS TABLE
+    await db.execute('''
+      CREATE TABLE comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        taskId INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        text TEXT NOT NULL,
+        uuid TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        isDeleted INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(taskId, date)
+      )
+    ''');
+  }
+
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // 1. Alter 'tasks' table
+      await db.execute('ALTER TABLE tasks ADD COLUMN uuid TEXT');
+      await db.execute('ALTER TABLE tasks ADD COLUMN createdAt TEXT');
+      await db.execute('ALTER TABLE tasks ADD COLUMN updatedAt TEXT');
+      await db.execute('ALTER TABLE tasks ADD COLUMN isDeleted INTEGER DEFAULT 0');
+
+      // 2. Alter 'completions' table
+      await db.execute('ALTER TABLE completions ADD COLUMN uuid TEXT');
+      await db.execute('ALTER TABLE completions ADD COLUMN createdAt TEXT');
+      await db.execute('ALTER TABLE completions ADD COLUMN updatedAt TEXT');
+      await db.execute('ALTER TABLE completions ADD COLUMN isDeleted INTEGER DEFAULT 0');
+
+      // 3. Create 'comments' table
+      await db.execute('''
+        CREATE TABLE comments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          taskId INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          text TEXT NOT NULL,
+          uuid TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL,
+          isDeleted INTEGER NOT NULL DEFAULT 0,
+          UNIQUE(taskId, date)
+        )
+      ''');
+
+      // 4. Backfill Data
+      final now = DateTime.now().toUtc().toIso8601String();
+      final uuidGen = const Uuid();
+
+      // Backfill Tasks
+      final tasks = await db.query('tasks');
+      for (var task in tasks) {
+        await db.update(
+          'tasks',
+          {
+            'uuid': uuidGen.v4(),
+            'createdAt': now,
+            'updatedAt': now,
+            'isDeleted': 0
+          },
+          where: 'id = ?',
+          whereArgs: [task['id']],
+        );
+      }
+
+      // Backfill Completions
+      final completions = await db.query('completions');
+      for (var completion in completions) {
+        await db.update(
+          'completions',
+          {
+            'uuid': uuidGen.v4(),
+            'createdAt': now,
+            'updatedAt': now,
+            'isDeleted': 0
+          },
+          where: 'id = ?',
+          whereArgs: [completion['id']],
+        );
+      }
+    }
   }
 
   // INTENT-BASED APIs (FIX 2)
@@ -59,7 +151,10 @@ class DatabaseService {
   /// Fetches all tasks once. No N+1 queries.
   Future<List<Task>> getAllTasks() async {
     final db = await instance.database;
-    final result = await db.query('tasks');
+    final result = await db.query(
+      'tasks',
+      where: 'isDeleted = 0',
+    );
     return result.map((json) => Task.fromMap(json)).toList();
   }
 
@@ -71,7 +166,7 @@ class DatabaseService {
     
     final result = await db.query(
       'completions',
-      where: 'date = ?',
+      where: 'date = ? AND isDeleted = 0',
       whereArgs: [dateStr],
     );
     
@@ -90,7 +185,7 @@ class DatabaseService {
 
     final result = await db.query(
       'completions',
-      where: 'date >= ? AND date <= ?',
+      where: 'date >= ? AND date <= ? AND isDeleted = 0',
       whereArgs: [startStr, endStr],
     );
 
@@ -103,12 +198,15 @@ class DatabaseService {
   /// ("#E0E0E0") is assigned here to guarantee data integrity.
   /// Updates an existing [Task] definition.
   ///
-  /// This method also ensures data integrity by deleting [TaskCompletion]
+  /// This method also ensures data integrity by SOFT DELETING [TaskCompletion]
   /// records that fall outside the new [startDate] and [endDate] range.
-  /// Completion records within the range are preserved exactly as-is.
   Future<void> updateTask(Task task) async {
     final db = await instance.database;
     final map = task.toMap();
+    
+    // Always update updatedAt to now (UTC)
+    final now = DateTime.now().toUtc().toIso8601String();
+    map['updatedAt'] = now;
     
     await db.transaction((txn) async {
       // 1. Update the task itself
@@ -119,12 +217,20 @@ class DatabaseService {
         whereArgs: [task.id],
       );
 
-      // 2. Cleanup completions outside the new range
+      // 2. Soft-delete dependencies outside the new range
       final startStr = task.startDate.toIso8601String().substring(0, 10);
       final endStr = task.endDate.toIso8601String().substring(0, 10);
-
-      await txn.delete(
+      // Soft delete completions
+      await txn.update(
         'completions',
+        {'isDeleted': 1, 'updatedAt': now},
+        where: 'taskId = ? AND (date < ? OR date > ?)',
+        whereArgs: [task.id, startStr, endStr],
+      );
+      // Soft delete comments
+      await txn.update(
+        'comments',
+        {'isDeleted': 1, 'updatedAt': now},
         where: 'taskId = ? AND (date < ? OR date > ?)',
         whereArgs: [task.id, startStr, endStr],
       );
@@ -133,22 +239,33 @@ class DatabaseService {
 
   /// Deletes a [Task] and all its associated completion history.
   ///
-  /// This is a destructive operation that removes both the task record
-  /// and any [TaskCompletion] records linked to it.
+  /// This is a SOFT DELETE operation. Records remain in DB but are marked
+  /// isDeleted = 1.
   Future<void> deleteTask(int taskId) async {
     final db = await instance.database;
+    final now = DateTime.now().toUtc().toIso8601String();
     
     await db.transaction((txn) async {
-      // 1. Delete all completion history
-      await txn.delete(
+      // 1. Soft delete all completion history
+      await txn.update(
         'completions',
+        {'isDeleted': 1, 'updatedAt': now},
         where: 'taskId = ?',
         whereArgs: [taskId],
       );
 
-      // 2. Delete the task record
-      await txn.delete(
+      // 2. Soft delete all comments
+      await txn.update(
+        'comments',
+        {'isDeleted': 1, 'updatedAt': now},
+        where: 'taskId = ?',
+        whereArgs: [taskId],
+      );
+
+      // 3. Soft delete the task record
+      await txn.update(
         'tasks',
+        {'isDeleted': 1, 'updatedAt': now},
         where: 'id = ?',
         whereArgs: [taskId],
       );
@@ -176,6 +293,7 @@ class DatabaseService {
   Future<void> toggleTaskCompletion(int taskId, DateTime date) async {
     final db = await instance.database;
     final dateStr = date.toIso8601String().substring(0, 10);
+    final now = DateTime.now().toUtc().toIso8601String();
 
     await db.transaction((txn) async {
       // Check if exists
@@ -190,7 +308,10 @@ class DatabaseService {
         final currentStatus = existing.first['isCompleted'] == 1;
         await txn.update(
           'completions',
-          {'isCompleted': currentStatus ? 0 : 1},
+          {
+            'isCompleted': currentStatus ? 0 : 1,
+            'updatedAt': now
+          },
           where: 'taskId = ? AND date = ?',
           whereArgs: [taskId, dateStr],
         );
@@ -201,6 +322,10 @@ class DatabaseService {
           'taskId': taskId,
           'date': dateStr,
           'isCompleted': 1, // Default to completed when created via toggle
+          'uuid': const Uuid().v4(),
+          'createdAt': now,
+          'updatedAt': now,
+          'isDeleted': 0
         });
       }
     });

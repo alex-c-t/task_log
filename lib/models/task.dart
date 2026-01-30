@@ -1,8 +1,10 @@
+import 'package:uuid/uuid.dart';
+import 'sync_entity_mixin.dart';
 
 enum RecurrenceType { daily, weekly, monthly }
 
 /// Represents a task definition with its recurrence rules and visual properties.
-class Task {
+class Task with SyncEntity {
   final int? id;
   final String title;
   final DateTime startDate;
@@ -13,6 +15,13 @@ class Task {
   /// The hex color code for this task (e.g., "#E0E0E0").
   /// Every task must have a color for consistent UI rendering.
   final String colorHex;
+  
+  @override
+  String uuid;
+  @override
+  DateTime createdAt;
+  @override
+  DateTime updatedAt;
 
   Task({
     this.id,
@@ -22,7 +31,15 @@ class Task {
     required this.recurrenceType,
     this.weeklyDays,
     required this.colorHex,
-  });
+    String? uuid,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    int isDeleted = 0,
+  }) : uuid = uuid ?? const Uuid().v4(),
+       createdAt = createdAt ?? DateTime.now().toUtc(),
+       updatedAt = updatedAt ?? DateTime.now().toUtc() {
+    this.isDeleted = isDeleted;
+  }
 
   /// Converts a [Task] into a Map for SQLite persistence.
   Map<String, dynamic> toMap() {
@@ -34,6 +51,7 @@ class Task {
       'recurrenceType': recurrenceType.toString().split('.').last,
       'weeklyDays': weeklyDays?.join(','), // Store as "1,3,5"
       'colorHex': colorHex,
+      ...toMapSync(),
     };
   }
 
@@ -45,12 +63,16 @@ class Task {
       startDate: DateTime.parse(map['startDate']),
       endDate: DateTime.parse(map['endDate']),
       recurrenceType: RecurrenceType.values.firstWhere(
-            (e) => e.toString().split('.').last == map['recurrenceType'],
+        (e) => e.toString().split('.').last == map['recurrenceType'],
       ),
       weeklyDays: map['weeklyDays'] != null && map['weeklyDays'].toString().isNotEmpty
           ? map['weeklyDays'].toString().split(',').map((e) => int.parse(e)).toList()
           : null,
       colorHex: map['colorHex'] ?? "#E0E0E0", // Fallback for safety during schema migration
+      uuid: map['uuid'],
+      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
+      updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt']) : null,
+      isDeleted: map['isDeleted'] ?? 0,
     );
   }
 }

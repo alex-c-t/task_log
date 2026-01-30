@@ -1,13 +1,12 @@
-
 import 'package:uuid/uuid.dart';
 import 'sync_entity_mixin.dart';
 
-class TaskCompletion with SyncEntity {
+class TaskComment with SyncEntity {
   final int? id;
   final int taskId;
   final String date; // YYYY-MM-DD
-  final bool isCompleted;
-  
+  final String text;
+
   @override
   String uuid;
   @override
@@ -15,11 +14,11 @@ class TaskCompletion with SyncEntity {
   @override
   DateTime updatedAt;
 
-  TaskCompletion({
+  TaskComment({
     this.id,
     required this.taskId,
     required this.date,
-    required this.isCompleted,
+    required this.text,
     String? uuid,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -35,17 +34,17 @@ class TaskCompletion with SyncEntity {
       'id': id,
       'taskId': taskId,
       'date': date,
-      'isCompleted': isCompleted ? 1 : 0,
+      'text': text,
       ...toMapSync(),
     };
   }
 
-  factory TaskCompletion.fromMap(Map<String, dynamic> map) {
-    return TaskCompletion(
+  factory TaskComment.fromMap(Map<String, dynamic> map) {
+    return TaskComment(
       id: map['id'],
       taskId: map['taskId'],
       date: map['date'],
-      isCompleted: map['isCompleted'] == 1,
+      text: map['text'],
       uuid: map['uuid'],
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
       updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt']) : null,
