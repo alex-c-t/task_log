@@ -260,7 +260,7 @@ class _CalendarDayCell extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           color: isToday ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3) : null,
         ),
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -310,47 +310,31 @@ class _TaskIndicators extends StatelessWidget {
     final overflowCount = tasks.length - maxVisibleDots;
     final dateStr = date.toIso8601String().substring(0, 10);
 
-    return Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Color dots with completion-based opacity and tick
+        // Stacked color bars
         ...visibleTasks.map((task) {
           final isCompleted = completionMap["${task.id}-$dateStr"] ?? false;
           final baseColor = _parseHexColor(task.colorHex);
 
           return Container(
-            margin: const EdgeInsets.only(right: 2),
-            width: isCompleted
-                  ? 9
-                  : 9,
-            height: isCompleted
-                  ? 9
-                  : 9,
+            margin: const EdgeInsets.only(bottom: 2),
+            height: 7,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: baseColor.withOpacity(isCompleted ? 1.0 : 0.2),
-              // border: isCompleted
-              //     ? Border.all(color: Colors.black.withOpacity(0.9), width: 0.4)
-              //     : null,
+              borderRadius: BorderRadius.circular(2),
+              color: baseColor.withOpacity(isCompleted ? 0.2 : 1.0),
             ),
-            // child: isCompleted
-            //     ? const Center(
-            //         // child: Padding(
-            //         //   padding: EdgeInsets.only(bottom: 0.5),
-            //           child: Icon(
-            //             Icons.circle,
-            //             size: 6,
-            //             color: Colors.black,
-            //           ),
-            //         // ),
-            //       )
-            //     : null,
           );
         }),
-        // Overflow label (+n)
+        // Overflow label (+n) below bars
         if (overflowCount > 0)
-          Text(
-            '+$overflowCount',
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+          Center(
+            child: Text(
+              '+$overflowCount',
+              style: const TextStyle(fontSize: 6, color: Colors.black),
+            ),
           ),
       ],
     );
