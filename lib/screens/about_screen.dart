@@ -32,7 +32,7 @@ class AboutScreen extends StatelessWidget {
                 const Icon(Icons.task_alt, size: 80, color: Colors.blue),
                 const SizedBox(height: 24),
                 Text(
-                  info.appName.isEmpty ? 'Task Log' : info.appName,
+                  info.appName.isEmpty ? 'Tasklet' : info.appName,
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 8),

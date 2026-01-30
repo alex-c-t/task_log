@@ -14,7 +14,7 @@ class BackupService {
     final file = File(path);
 
     if (await file.exists()) {
-      await Share.shareXFiles([XFile(path)], text: 'Task Log Database Backup');
+      await Share.shareXFiles([XFile(path)], text: 'Tasklet Database Backup');
     } else {
       throw Exception('Database file not found at $path');
     }

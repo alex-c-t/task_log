@@ -49,7 +49,7 @@ class SettingsScreen extends StatelessWidget {
         children: [
           const UserAccountsDrawerHeader(
             decoration: BoxDecoration(color: Colors.transparent), // Blend with theme
-            accountName: Text('Task Log User', style: TextStyle(color: Colors.grey)), 
+            accountName: Text('Tasklet User', style: TextStyle(color: Colors.grey)), 
             accountEmail: null,
             currentAccountPicture: CircleAvatar(
               child: Icon(Icons.person),

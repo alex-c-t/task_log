@@ -98,7 +98,7 @@ class _MainScreenState extends State<MainScreen> {
                    const Icon(Icons.task_alt, size: 48),
                    const SizedBox(height: 12),
                    Text(
-                    'Task Log',
+                    'Tasklet',
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                 ],

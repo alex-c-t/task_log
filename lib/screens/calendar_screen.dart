@@ -124,7 +124,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Task Log'),
+        title: const Text('Tasklet'),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu),

@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/main_screen.dart';
 
-/// The root widget of the Task Log application.
+/// The root widget of the Tasklet application.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(
@@ -23,7 +23,7 @@ class TaskLogApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
-      title: 'Task Log',
+      title: 'Tasklet',
       themeMode: themeProvider.themeMode,
       theme: ThemeData(
         useMaterial3: true,
