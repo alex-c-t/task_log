@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/task.dart';
-import '../models/task_completion.dart';
 import '../services/database_service.dart';
 import '../utils/recurrence_helper.dart';
 import '../widgets/task_tile.dart';
@@ -108,7 +107,9 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
             onPressed: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const AddTaskScreen()),
+                MaterialPageRoute(
+                  builder: (_) => AddTaskScreen(initialStartDate: _currentDate),
+                ),
               );
               _loadData(); // Refresh tasks when returning
             },

@@ -286,10 +286,10 @@ class _CalendarDayCell extends StatelessWidget {
 
 /// Renders visual indicators for tasks on a specific day with completion state.
 /// 
-/// Status is indicated using color brightness only:
-/// 1. Pending: Base color as stored in [Task.colorHex].
-/// 2. Completed (Grey): Rendered as Black.
-/// 3. Completed (Bright): Rendered as a darker shade (40% decrease in lightness).
+/// **Completion Visual Rules (Phase 2.3.1):**
+/// - Completed occurrences show reduced opacity and a small universal green checkmark.
+/// - Pending occurrences show full opacity and no checkmark.
+/// - Green is reserved exclusively for this checkmark to avoid UI ambiguity.
 class _TaskIndicators extends StatelessWidget {
   final List<Task> tasks;
   final DateTime date;
@@ -312,22 +312,38 @@ class _TaskIndicators extends StatelessWidget {
 
     return Row(
       children: [
-        // Color dots with completion-based transformation
+        // Color dots with completion-based opacity and tick
         ...visibleTasks.map((task) {
           final isCompleted = completionMap["${task.id}-$dateStr"] ?? false;
           final baseColor = _parseHexColor(task.colorHex);
-          final displayColor = _isGrey(task.colorHex)
-              ? (isCompleted ? Colors.black : baseColor)
-              : (isCompleted ? _darken(baseColor, 0.4) : baseColor);
 
           return Container(
             margin: const EdgeInsets.only(right: 2),
-            width: 6,
-            height: 6,
+            width: isCompleted
+                  ? 9
+                  : 9,
+            height: isCompleted
+                  ? 9
+                  : 9,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: displayColor,
+              color: baseColor.withOpacity(isCompleted ? 1.0 : 0.2),
+              // border: isCompleted
+              //     ? Border.all(color: Colors.black.withOpacity(0.9), width: 0.4)
+              //     : null,
             ),
+            // child: isCompleted
+            //     ? const Center(
+            //         // child: Padding(
+            //         //   padding: EdgeInsets.only(bottom: 0.5),
+            //           child: Icon(
+            //             Icons.circle,
+            //             size: 6,
+            //             color: Colors.black,
+            //           ),
+            //         // ),
+            //       )
+            //     : null,
           );
         }),
         // Overflow label (+n)
@@ -340,18 +356,7 @@ class _TaskIndicators extends StatelessWidget {
     );
   }
 
-  /// Checks if a hex color string represents the default light grey.
-  bool _isGrey(String hex) => hex.trim().toUpperCase() == "#E0E0E0";
-
-  /// Deterministically darkens a color by a fixed percentage.
-  /// 
-  /// Preserves the hue while decreasing lightness.
-  Color _darken(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
-  }
-
-  /// Converts a hex string like "#E0E0E0" into a Flutter [Color] object.
+  /// Converts a hex string like "#000000" into a Flutter [Color] object.
   Color _parseHexColor(String hex) {
     try {
       return Color(int.parse(hex.replaceFirst('#', '0xFF')));

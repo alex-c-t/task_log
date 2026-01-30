@@ -19,7 +19,14 @@ class AddTaskScreen extends StatefulWidget {
   /// If provided, the screen initializes in "Edit Mode" with this task's data.
   final Task? taskToEdit;
 
-  const AddTaskScreen({super.key, this.taskToEdit});
+  /// If provided, new tasks will default to this start date.
+  final DateTime? initialStartDate;
+
+  const AddTaskScreen({
+    super.key,
+    this.taskToEdit,
+    this.initialStartDate,
+  });
 
   @override
   State<AddTaskScreen> createState() => _AddTaskScreenState();
@@ -35,25 +42,35 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   late String _selectedColor;
 
   /// The predefined bright color palette for task categorization.
-  /// Grey (#E0E0E0) is the default and first option.
+  /// Black (#000000) is the default and first option.
+  /// 
+  /// Why Black? It serves as a neutral, high-contrast base for all tasks.
+  /// Why no Green? Under Phase 2.3.1 rules, green is reserved exclusively
+  /// for completion status (checkmark) to avoid visual ambiguity.
   static const List<String> _colorPalette = [
-    "#E0E0E0", // Grey (Default)
-    "#2196F3", // Blue
-    "#F44336", // Red
-    "#4CAF50", // Green
-    "#FF9800", // Orange
-    "#9C27B0", // Purple
-  ];
+  "#000000", // Black (Default) 
+  "#D32F2F", // Red (darker)
+  "#F57C00", // Orange (darker)
+  "#FBC02D", // Yellow (darker, less glare)
+  "#0097A7", // Cyan (darker)
+  "#1976D2", // Blue (darker)
+  "#7B1FA2", // Purple (darker)
+  "#C2185B", // Magenta (darker)
+  "#5D4037", // Brown (darker)
+];
 
-  @override
+  @override 
   void initState() {
     super.initState();
     final editTask = widget.taskToEdit;
     
     // Initialize fields from taskToEdit or defaults for new task
     _titleController.text = editTask?.title ?? '';
-    _startDate = editTask?.startDate ?? DateTime.now();
-    _endDate = editTask?.endDate ?? DateTime.now().add(const Duration(days: 30));
+    
+    // UX logic: Use task's date, or initial context date, or current time
+    _startDate = editTask?.startDate ?? widget.initialStartDate ?? DateTime.now();
+    
+    _endDate = editTask?.endDate ?? _startDate.add(const Duration(days: 30));
     _recurrenceType = editTask?.recurrenceType ?? RecurrenceType.daily;
     _selectedWeeklyDays = List.of(editTask?.weeklyDays ?? []);
     _selectedColor = editTask?.colorHex ?? _colorPalette.first;
