@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'main_screen.dart';
 import '../models/task.dart';
 import '../services/database_service.dart';
 import 'add_task_screen.dart';
@@ -67,96 +66,85 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tasks'),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => MainScreen.scaffoldKey.currentState?.openDrawer(),
-          ),
-        ),
-        actions: [
-            // Month Pagination Controls in AppBar
-            IconButton(
+    return Column(
+      children: [
+        // Month Pagination Controls moved from AppBar to Body
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
                 icon: const Icon(Icons.chevron_left),
                 onPressed: () => _changeMonth(-1),
-            ),
-            Text(DateFormat.yMMM().format(_focusedMonth), style: const TextStyle(fontWeight: FontWeight.bold)),
-            IconButton(
+              ),
+              Text(
+                DateFormat.yMMM().format(_focusedMonth),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              IconButton(
                 icon: const Icon(Icons.chevron_right),
                 onPressed: () => _changeMonth(1),
-            ),
-            const SizedBox(width: 16),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Filter Chips
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              children: [
-                _buildFilterChip('Active'),
-                const SizedBox(width: 8),
-                _buildFilterChip('Completed'),
-                const SizedBox(width: 8),
-                _buildFilterChip('All'),
-              ],
-            ),
+              ),
+            ],
           ),
-          
-          Expanded(
-            child: FutureBuilder<List<Task>>(
-              future: _loadTasks(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No tasks found'));
-                }
+        ),
 
-                final tasks = snapshot.data!;
-                return ListView.builder(
-                  itemCount: tasks.length,
-                  itemBuilder: (context, index) {
-                    final task = tasks[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: HexColor.fromHex(task.colorHex),
-                          radius: 12,
-                        ),
-                        title: Text(
-                            task.title,
-                            style: TextStyle(
-                                decoration: _filter == 'Completed' ? TextDecoration.lineThrough : null,
-                                color: _filter == 'Completed' ? Colors.grey : null,
-                            ),
-                        ),
-                        subtitle: Text(_formatRecurrence(task)),
-                        onTap: () => _navigateToEdit(task),
-                        trailing: const Icon(Icons.edit, size: 20),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+        // Filter Chips
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            children: [
+              _buildFilterChip('Active'),
+              const SizedBox(width: 8),
+              _buildFilterChip('Completed'),
+              const SizedBox(width: 8),
+              _buildFilterChip('All'),
+            ],
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-            await Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const AddTaskScreen()),
-            );
-            setState(() {});
-        },
-        child: const Icon(Icons.add),
-      ),
+        ),
+        
+        Expanded(
+          child: FutureBuilder<List<Task>>(
+            future: _loadTasks(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text('No tasks found'));
+              }
+
+              final tasks = snapshot.data!;
+              return ListView.builder(
+                itemCount: tasks.length,
+                itemBuilder: (context, index) {
+                  final task = tasks[index];
+                  return Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: HexColor.fromHex(task.colorHex),
+                        radius: 12,
+                      ),
+                      title: Text(
+                          task.title,
+                          style: TextStyle(
+                              decoration: _filter == 'Completed' ? TextDecoration.lineThrough : null,
+                              color: _filter == 'Completed' ? Colors.grey : null,
+                          ),
+                      ),
+                      subtitle: Text(_formatRecurrence(task)),
+                      onTap: () => _navigateToEdit(task),
+                      trailing: const Icon(Icons.edit, size: 20),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

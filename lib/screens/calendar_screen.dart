@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'main_screen.dart';
 import '../models/task.dart';
 import '../services/database_service.dart';
 import '../utils/recurrence_helper.dart';
@@ -14,7 +13,12 @@ import '../utils/calendar_config.dart';
 /// 2. Tap on any day to see tasks for that specific date in the [DayDetailScreen].
 /// 3. Identify today's date through a subtle visual highlight.
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({super.key});
+  final Function(DateTime) onDateSelected;
+
+  const CalendarScreen({
+    super.key,
+    required this.onDateSelected,
+  });
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -57,12 +61,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   /// Computes which tasks fall on which days of the currently focused month.
-  /// 
-  /// Logic:
-  /// 1. Iterates from the 1st to the last day of [_focusedMonth] (Option B).
-  /// 2. For each day, runs [RecurrenceHelper.isTaskActiveOnDate] against all tasks.
-  /// 3. Builds a map for quick O(1) lookup during grid rendering.
-  /// 4. Also populates the completion lookup map from pre-fetched records.
   void _computeTaskMap(List<Task> allTasks, List<dynamic> completions) {
     final daysInMonth = _getDaysInMonth(_focusedMonth);
     final Map<DateTime, List<Task>> newMap = {};
@@ -92,28 +90,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   /// Navigates the calendar focus by a given number of months.
-  ///
-  /// [delta] is typically 1 for next month, or -1 for previous month.
   void _changeMonth(int delta) {
     setState(() {
       _focusedMonth = DateTime(
         _focusedMonth.year,
         _focusedMonth.month + delta,
       );
-      _taskMap.clear(); // Clear to avoid showing stale indicators while loading
+      _taskMap.clear(); 
     });
     _loadTasks();
   }
 
   /// Calculates the total number of days in the currently focused month.
   int _getDaysInMonth(DateTime monthDate) {
-    // Adding 1 to the month and setting day to 0 returns the last day of the current month.
     return DateTime(monthDate.year, monthDate.month + 1, 0).day;
   }
 
   int _getFirstWeekdayOfMonth(DateTime monthDate) {
     return DateTime(monthDate.year, monthDate.month, 1).weekday;
   }
+
+  @override
   Widget build(BuildContext context) {
     final daysInMonth = _getDaysInMonth(_focusedMonth);
     final firstWeekday = _getFirstWeekdayOfMonth(_focusedMonth);
@@ -122,109 +119,88 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final offset = CalendarConfig.getGridOffset(firstWeekday);
     final totalCells = daysInMonth + offset;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tasklet'),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => MainScreen.scaffoldKey.currentState?.openDrawer(),
+    return Column(
+      children: [
+        // Month Navigation Header
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () => _changeMonth(-1),
+                tooltip: 'Previous Month',
+              ),
+              Text(
+                DateFormat.yMMMM().format(_focusedMonth),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () => _changeMonth(1),
+                tooltip: 'Next Month',
+              ),
+            ],
           ),
         ),
-      ),
-      body: Column(
-        children: [
-          // Month Navigation Header
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () => _changeMonth(-1),
-                  tooltip: 'Previous Month',
-                ),
-                Text(
-                  DateFormat.yMMMM().format(_focusedMonth),
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: () => _changeMonth(1),
-                  tooltip: 'Next Month',
-                ),
-              ],
-            ),
-          ),
-          
-          // Weekday Labels
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Row(
-              children: CalendarConfig.getWeekdayLabels().map((dayName) {
-                return Expanded(
-                  child: Center(
-                    child: Text(
-                      dayName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
+        
+        // Weekday Labels
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Row(
+            children: CalendarConfig.getWeekdayLabels().map((dayName) {
+              return Expanded(
+                child: Center(
+                  child: Text(
+                    dayName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                );
-              }).toList(),
-            ),
+                ),
+              );
+            }).toList(),
           ),
+        ),
 
-          const Divider(),
+        const Divider(),
 
-          // Calendar Grid
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(8.0),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                childAspectRatio: 0.8, // Tall cells as requested
-                mainAxisSpacing: 4,
-                crossAxisSpacing: 4,
-              ),
-              itemCount: totalCells,
-              itemBuilder: (context, index) {
-                if (index < offset) {
-                  // Empty space for padding leading days
-                  return const SizedBox.shrink();
-                }
-
-                final dayNumber = index - offset + 1;
-                final date = DateTime(_focusedMonth.year, _focusedMonth.month, dayNumber);
-                final now = DateTime.now();
-                final isToday = date.year == now.year &&
-                                date.month == now.month &&
-                                date.day == now.day;
-
-                // Retrieve pre-computed tasks for this specific date.
-                final dayTasks = _taskMap[date] ?? [];
-
-                return _CalendarDayCell(
-                  dayNumber: dayNumber,
-                  isToday: isToday,
-                  tasks: dayTasks,
-                  date: date,
-                  completionMap: _completionMap,
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DayDetailScreen(selectedDate: date),
-                      ),
-                    );
-                    _loadTasks(); // Refresh in case tasks were added/modified
-                  },
-                );
-              },
+        // Calendar Grid
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(8.0),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              childAspectRatio: 0.8, 
+              mainAxisSpacing: 4,
+              crossAxisSpacing: 4,
             ),
+            itemCount: totalCells,
+            itemBuilder: (context, index) {
+              if (index < offset) {
+                return const SizedBox.shrink();
+              }
+
+              final dayNumber = index - offset + 1;
+              final date = DateTime(_focusedMonth.year, _focusedMonth.month, dayNumber);
+              final now = DateTime.now();
+              final isToday = date.year == now.year &&
+                              date.month == now.month &&
+                              date.day == now.day;
+
+              final dayTasks = _taskMap[date] ?? [];
+
+              return _CalendarDayCell(
+                dayNumber: dayNumber,
+                isToday: isToday,
+                tasks: dayTasks,
+                date: date,
+                completionMap: _completionMap,
+                onTap: () => widget.onDateSelected(date),
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

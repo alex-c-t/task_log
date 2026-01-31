@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'main_screen.dart';
 import '../models/task_comment.dart';
 import '../models/task.dart';
 import '../services/database_service.dart';
@@ -38,6 +37,15 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     super.initState();
     _currentDate = widget.selectedDate;
     _loadData();
+  }
+
+  @override
+  void didUpdateWidget(covariant DayDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedDate != oldWidget.selectedDate) {
+      _currentDate = widget.selectedDate;
+      _loadData();
+    }
   }
 
   Future<void> _loadData() async {
@@ -153,80 +161,55 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       return RecurrenceHelper.isTaskActiveOnDate(task, _currentDate);
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tasklet'),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => MainScreen.scaffoldKey.currentState?.openDrawer(),
+    return Column(
+      children: [
+        // Date Helper Bar
+        Container(
+          padding: const EdgeInsets.all(16.0),
+          color: Colors.grey[200],
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => _changeDate(-1)),
+              Text(
+                DateFormat.yMMMEd().format(_currentDate),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              IconButton(icon: const Icon(Icons.arrow_forward), onPressed: () => _changeDate(1)),
+            ],
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AddTaskScreen(initialStartDate: _currentDate),
+        
+        Expanded(
+          child: activeTasks.isEmpty
+              ? const Center(child: Text('No tasks for this day.'))
+              : ListView.builder(
+                  itemCount: activeTasks.length,
+                  itemBuilder: (context, index) {
+                    final task = activeTasks[index];
+                    final isCompleted = _completionStatus[task.id] ?? false;
+                    final comment = _commentsMap[task.id];
+                    
+                    return TaskTile(
+                      title: task.title,
+                      isCompleted: isCompleted,
+                      comment: comment?.text,
+                      onCommentTap: () => _handleComment(task),
+                      onToggle: () => _toggleTask(task.id!),
+                      onEdit: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AddTaskScreen(taskToEdit: task),
+                          ),
+                        );
+                        _loadData(); // Refresh tasks
+                      },
+                    );
+                  },
                 ),
-              );
-              _loadData(); // Refresh tasks when returning
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Date Helper Bar
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            color: Colors.grey[200],
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => _changeDate(-1)),
-                Text(
-                  DateFormat.yMMMEd().format(_currentDate),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                IconButton(icon: const Icon(Icons.arrow_forward), onPressed: () => _changeDate(1)),
-              ],
-            ),
-          ),
-          
-          Expanded(
-            child: activeTasks.isEmpty
-                ? const Center(child: Text('No tasks for this day.'))
-                : ListView.builder(
-                    itemCount: activeTasks.length,
-                    itemBuilder: (context, index) {
-                      final task = activeTasks[index];
-                      final isCompleted = _completionStatus[task.id] ?? false;
-                      final comment = _commentsMap[task.id];
-                      
-                      return TaskTile(
-                        title: task.title,
-                        isCompleted: isCompleted,
-                        comment: comment?.text,
-                        onCommentTap: () => _handleComment(task),
-                        onToggle: () => _toggleTask(task.id!),
-                        onEdit: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => AddTaskScreen(taskToEdit: task),
-                            ),
-                          );
-                          _loadData(); // Refresh tasks
-                        },
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
