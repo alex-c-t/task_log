@@ -230,29 +230,47 @@ class _CalendarDayCell extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
       child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-          color: isToday ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3) : null,
+          border: Border(
+            right: BorderSide(color: Colors.grey.withValues(alpha: 0.2), width: 0.5),
+            bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.2), width: 0.5),
+          ),
         ),
-        padding: const EdgeInsets.all(1),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              dayNumber.toString(),
-              style: TextStyle(
-                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                color: isToday ? Theme.of(context).colorScheme.primary : null,
+            const SizedBox(height: 4),
+            // Centered day number with circular highlight for today
+            Center(
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isToday ? Theme.of(context).colorScheme.primary : null,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  dayNumber.toString(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                    color: isToday 
+                        ? Colors.white 
+                        : (Theme.of(context).brightness == Brightness.dark 
+                           ? Colors.white 
+                           : Colors.black87),
+                  ),
+                ),
               ),
             ),
-            _TaskIndicators(
-              tasks: tasks,
-              date: date,
-              completionMap: completionMap,
+            const SizedBox(height: 4),
+            Expanded(
+              child: _TaskIndicators(
+                tasks: tasks,
+                date: date,
+                completionMap: completionMap,
+              ),
             ),
           ],
         ),
@@ -287,94 +305,67 @@ class _TaskIndicators extends StatelessWidget {
     final overflowCount = tasks.length - maxVisibleDots;
     final dateStr = date.toIso8601String().substring(0, 10);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Stacked color bars
-        ...visibleTasks.map((task) {
-          final isCompleted = completionMap["${task.id}-$dateStr"] ?? false;
-          final baseColor = _parseHexColor(task.colorHex);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Stacked color bars
+          ...visibleTasks.map((task) {
+            final isCompleted = completionMap["${task.id}-$dateStr"] ?? false;
+            final baseColor = _parseHexColor(task.colorHex);
+            final textColor = _getContrastingTextColor(baseColor);
+            final displayTextColor = isCompleted ? textColor.withValues(alpha: 0.5) : textColor;
 
-          // Text Fade Logic
-          final title = task.title;
-          const int nOpaque = 8;
-          const int mFaded = 4;
-          
-          String part1 = "";
-          String part2 = "";
-
-          if (title.length <= nOpaque) {
-            part1 = title;
-          } else {
-            part1 = title.substring(0, nOpaque);
-            if (title.length <= nOpaque + mFaded) {
-              part2 = title.substring(nOpaque);
-            } else {
-              part2 = title.substring(nOpaque, nOpaque + mFaded);
-            }
-          }
-
-          final textColor = _getContrastingTextColor(baseColor);
-          // If task is completed, the bar itself is faded (0.2). 
-          // Text contrast should calculate against the effective color or just base? 
-          // Plan says "Text fade is independent of task completion state", 
-          // and "Bar color and opacity logic ... same".
-          // However, if bar is 0.2 opacity, white text might be invisible if background is white.
-          // But strict rules say "Bar color ... logic remain EXACTLY".
-          // We will assume standard contrast against the base color usually works, 
-          // or just strictly follow the "contrast with bar color" rule. 
-          // Since the bar is transparent-ish when completed, text might need to be darker?
-          // Simplest interpretation: Contrast against the *base* color, but if the bar is very light due to opacity, 
-          // functionality might vary. 
-          // However, let's stick to the base color for contrast decision to be stable.
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 2),
-            height: 9,
-            padding: const EdgeInsets.only(left: 2),
-            alignment: Alignment.centerLeft,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(2),
-              color: baseColor.withOpacity(isCompleted ? 0.2 : 1.0),
-            ),
-            child: RichText(
-              overflow: TextOverflow.clip,
-              maxLines: 1,
-              text: TextSpan(
-                style: TextStyle(
-                  fontSize: 8, 
-                  fontWeight: FontWeight.w500,
-                  color: textColor,
-                ),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 2),
+              height: 14,
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                color: baseColor.withValues(alpha: isCompleted ? 0.2 : 1.0),
+              ),
+              child: Row(
                 children: [
-                  TextSpan(
-                    text: part1,
-                    style: TextStyle(
-                      color: textColor.withOpacity(1.0),
-                    ),
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: 10,
+                    color: displayTextColor,
                   ),
-                  if (part2.isNotEmpty)
-                    TextSpan(
-                      text: part2,
+                  const SizedBox(width: 2),
+                  Expanded(
+                    child: Text(
+                      task.title,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                       style: TextStyle(
-                        color: textColor.withOpacity(0.3),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w500,
+                        color: displayTextColor,
+                        decoration: isCompleted ? TextDecoration.lineThrough : null,
+                        decorationColor: isCompleted ? textColor : null,
+                        decorationThickness: 1.5,
                       ),
                     ),
+                  ),
                 ],
               ),
+            );
+          }),
+          // Overflow label (+n) below bars
+          if (overflowCount > 0)
+            Center(
+              child: Text(
+                '+$overflowCount',
+                style: TextStyle(
+                  fontSize: 6, 
+                  color: Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey,
+                ),
+              ),
             ),
-          );
-        }),
-        // Overflow label (+n) below bars
-        if (overflowCount > 0)
-          Center(
-            child: Text(
-              '+$overflowCount',
-              style: const TextStyle(fontSize: 6, color: Colors.black),
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 

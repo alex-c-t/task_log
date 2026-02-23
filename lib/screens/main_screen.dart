@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'calendar_screen.dart';
 import 'day_detail_screen.dart';
 import 'task_list_screen.dart';
@@ -24,6 +25,10 @@ class _MainScreenState extends State<MainScreen> {
   void _onTabTapped(int index) {
     setState(() {
       _currentIndex = index;
+      // If user taps "Today" tab, reset date to today
+      if (index == 1) {
+        _selectedDate = DateTime.now();
+      }
     });
   }
 
@@ -45,97 +50,110 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final List<Widget> pages = [
       CalendarScreen(onDateSelected: _onDaySelected),
-      DayDetailScreen(selectedDate: _selectedDate),
+      DayDetailScreen(
+        selectedDate: _selectedDate,
+        onDateChanged: (date) => setState(() => _selectedDate = date),
+      ),
       const TaskListScreen(),
     ];
 
     String title = 'Tasklet';
     if (_currentIndex == 1) {
-      // Logic for DayDetail title can be here or based on _selectedDate
-      title = 'Task Log'; 
+      title = DateFormat.yMMMd().format(_selectedDate);
     } else if (_currentIndex == 2) {
       title = 'Tasks';
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          if (_currentIndex == 1 || _currentIndex == 2)
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () async {
-                final date = _currentIndex == 1 ? _selectedDate : DateTime.now();
-                await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => AddTaskScreen(initialStartDate: date)),
-                );
-                // After returning, we might need a way to refresh if we weren't using streams
-                // Since child widgets load data in initState/didUpdateWidget, 
-                // and IndexedStack keeps them alive, we might need to trigger a reload.
-                // However, switching tabs or re-building MainScreen might help.
-                setState(() {}); 
-              },
-            ),
-        ],
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_currentIndex != 0) {
+          setState(() {
+            _currentIndex = 0;
+          });
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(title),
+          actions: [
+            if (_currentIndex == 1 || _currentIndex == 2)
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () async {
+                  final date = _currentIndex == 1 ? _selectedDate : DateTime.now();
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => AddTaskScreen(initialStartDate: date)),
+                  );
+                  // After returning, we might need a way to refresh if we weren't using streams
+                  // Since child widgets load data in initState/didUpdateWidget, 
+                  // and IndexedStack keeps them alive, we might need to trigger a reload.
+                  // However, switching tabs or re-building MainScreen might help.
+                  setState(() {}); 
+                },
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  const Icon(Icons.task_alt, size: 48),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Tasklet',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                ],
+          ],
+        ),
+        drawer: Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              DrawerHeader(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const Icon(Icons.task_alt, size: 48),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Tasklet',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                  ],
+                ),
               ),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('Settings'),
+                onTap: () => _navigateToDrawerItem(const SettingsScreen()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.info),
+                title: const Text('About'),
+                onTap: () => _navigateToDrawerItem(const AboutScreen()),
+              ),
+            ],
+          ),
+        ),
+        body: IndexedStack(
+          index: _currentIndex,
+          children: pages,
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: _onTabTapped,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.calendar_month_outlined),
+              selectedIcon: Icon(Icons.calendar_month),
+              label: 'Calendar',
             ),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Settings'),
-              onTap: () => _navigateToDrawerItem(const SettingsScreen()),
+            NavigationDestination(
+              icon: Icon(Icons.today_outlined),
+              selectedIcon: Icon(Icons.today),
+              label: 'Today',
             ),
-            ListTile(
-              leading: const Icon(Icons.info),
-              title: const Text('About'),
-              onTap: () => _navigateToDrawerItem(const AboutScreen()),
+            NavigationDestination(
+              icon: Icon(Icons.list_alt_outlined),
+              selectedIcon: Icon(Icons.list_alt),
+              label: 'Tasks',
             ),
           ],
         ),
-      ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: pages,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: _onTabTapped,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
-            label: 'Calendar',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.today_outlined),
-            selectedIcon: Icon(Icons.today),
-            label: 'Today',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.list_alt_outlined),
-            selectedIcon: Icon(Icons.list_alt),
-            label: 'Tasks',
-          ),
-        ],
       ),
     );
   }

@@ -120,6 +120,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 itemCount: tasks.length,
                 itemBuilder: (context, index) {
                   final task = tasks[index];
+                  final now = DateTime.now();
+                  final today = DateTime(now.year, now.month, now.day);
+                  final taskEnd = DateTime(task.endDate.year, task.endDate.month, task.endDate.day, 23, 59, 59);
+                  final isExpired = taskEnd.isBefore(today);
+
                   return Card(
                     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: ListTile(
@@ -130,8 +135,10 @@ class _TaskListScreenState extends State<TaskListScreen> {
                       title: Text(
                           task.title,
                           style: TextStyle(
-                              decoration: _filter == 'Completed' ? TextDecoration.lineThrough : null,
-                              color: _filter == 'Completed' ? Colors.grey : null,
+                              decoration: isExpired ? TextDecoration.lineThrough : null,
+                              decorationColor: isExpired ? Colors.grey[800] : null,
+                              decorationThickness: 2.0,
+                              color: isExpired ? Colors.grey : null,
                           ),
                       ),
                       subtitle: Text(_formatRecurrence(task)),

@@ -221,7 +221,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _colorPalette.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  separatorBuilder: (context, index) => const SizedBox(width: 12),
                   itemBuilder: (context, index) {
                     final colorHex = _colorPalette[index];
                     final color = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
@@ -242,7 +242,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                           boxShadow: [
                             if (isSelected)
                               BoxShadow(
-                                color: colorScheme.primary.withOpacity(0.4),
+                                color: colorScheme.primary.withValues(alpha: 0.4),
                                 blurRadius: 8,
                                 spreadRadius: 1,
                               ),
@@ -282,7 +282,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<RecurrenceType>(
-                value: _recurrenceType,
+                initialValue: _recurrenceType,
                 decoration: const InputDecoration(labelText: 'Recurrence'),
                 items: RecurrenceType.values.map((type) {
                   return DropdownMenuItem(

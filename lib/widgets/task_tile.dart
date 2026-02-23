@@ -10,14 +10,14 @@ class TaskTile extends StatelessWidget {
   final VoidCallback? onCommentTap;
 
   const TaskTile({
-    Key? key,
+    super.key,
     required this.title,
     required this.isCompleted,
     required this.onToggle,
     this.onEdit,
     this.comment,
     this.onCommentTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +27,9 @@ class TaskTile extends StatelessWidget {
           title,
           style: TextStyle(
             decoration: isCompleted ? TextDecoration.lineThrough : null,
+            decorationColor: isCompleted ? Colors.grey[800] : null,
+            decorationThickness: 2.0,
+            color: isCompleted ? Colors.grey : null,
           ),
         ),
         subtitle: GestureDetector(

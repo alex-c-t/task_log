@@ -19,8 +19,13 @@ import 'add_task_screen.dart';
 class DayDetailScreen extends StatefulWidget {
   /// The date for which tasks are being displayed.
   final DateTime selectedDate;
+  final Function(DateTime)? onDateChanged;
 
-  const DayDetailScreen({super.key, required this.selectedDate});
+  const DayDetailScreen({
+    super.key,
+    required this.selectedDate,
+    this.onDateChanged,
+  });
 
   @override
   State<DayDetailScreen> createState() => _DayDetailScreenState();
@@ -80,6 +85,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       _completionStatus.clear(); // Clear to prevent stale state flicker
       _commentsMap.clear();
     });
+    widget.onDateChanged?.call(_currentDate);
     _loadDayContext(_currentDate);
   }
 

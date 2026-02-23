@@ -195,7 +195,7 @@ class _TaskLogDatePickerState extends State<TaskLogDatePicker> {
                   textColor = Theme.of(context).colorScheme.onPrimary;
                 } else if (isInRange) {
                   decoration = BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                     shape: BoxShape.rectangle,
                     borderRadius: BorderRadius.circular(4),
                   );
