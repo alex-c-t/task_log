@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/task.dart';
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
 import '../widgets/task_log_date_range_picker.dart';
 
 /// A screen for creating or editing [Task] definitions.
@@ -41,6 +42,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   late RecurrenceType _recurrenceType;
   late List<int> _selectedWeeklyDays;
   late String _selectedColor;
+  TimeOfDay? _reminderTime;
 
   /// The predefined bright color palette for task categorization.
   /// Black (#000000) is the default and first option.
@@ -75,6 +77,11 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     _recurrenceType = editTask?.recurrenceType ?? RecurrenceType.daily;
     _selectedWeeklyDays = List.of(editTask?.weeklyDays ?? []);
     _selectedColor = editTask?.colorHex ?? _colorPalette.first;
+    
+    if (editTask?.reminderTime != null) {
+      final parts = editTask!.reminderTime!.split(':');
+      _reminderTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    }
   }
 
   @override
@@ -116,6 +123,18 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     }
   }
 
+  Future<void> _selectTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _reminderTime ?? const TimeOfDay(hour: 9, minute: 0),
+    );
+    if (picked != null) {
+      setState(() {
+        _reminderTime = picked;
+      });
+    }
+  }
+
   /// Persists the task to the database (INSERT or UPDATE).
   void _saveTask() async {
     if (_formKey.currentState!.validate()) {
@@ -129,6 +148,11 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         return;
       }
 
+      String? reminderStr;
+      if (_reminderTime != null) {
+        reminderStr = '${_reminderTime!.hour.toString().padLeft(2, '0')}:${_reminderTime!.minute.toString().padLeft(2, '0')}';
+      }
+
       final task = Task(
         id: widget.taskToEdit?.id,
         title: _titleController.text,
@@ -137,14 +161,37 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         recurrenceType: _recurrenceType,
         weeklyDays: _recurrenceType == RecurrenceType.weekly ? _selectedWeeklyDays : null,
         colorHex: _selectedColor,
+        reminderTime: reminderStr,
       );
 
+      int taskId;
       if (widget.taskToEdit == null) {
-        await DatabaseService.instance.insertTask(task);
+        taskId = await DatabaseService.instance.insertTask(task);
       } else {
         await DatabaseService.instance.updateTask(task);
+        taskId = task.id!;
       }
       
+      // Schedule or cancel reminder
+      // IMPORTANT: We need the inserted ID for new tasks
+      final savedTask = Task(
+        id: taskId,
+        title: task.title,
+        startDate: task.startDate,
+        endDate: task.endDate,
+        recurrenceType: task.recurrenceType,
+        weeklyDays: task.weeklyDays,
+        colorHex: task.colorHex,
+        reminderTime: task.reminderTime,
+      );
+
+      final ns = NotificationService.instance;
+      if (savedTask.reminderTime != null) {
+        await ns.scheduleTaskReminder(savedTask);
+      } else {
+        await ns.cancelReminder(savedTask.id!);
+      }
+
       if (mounted) Navigator.pop(context);
     }
   }
@@ -174,6 +221,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     );
 
     if (confirmed == true && widget.taskToEdit?.id != null) {
+      await NotificationService.instance.cancelReminder(widget.taskToEdit!.id!);
       await DatabaseService.instance.deleteTask(widget.taskToEdit!.id!);
       if (mounted) {
         // Pop back twice or to home? Let's pop once, 
@@ -211,7 +259,32 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 decoration: const InputDecoration(labelText: 'Task Title'),
                 validator: (value) => value == null || value.isEmpty ? 'Please enter a title' : null,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              
+              // Reminder Section
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Daily Reminder'),
+                subtitle: Text(_reminderTime != null 
+                    ? 'Notify at ${_reminderTime!.format(context)}' 
+                    : 'No reminder set'),
+                value: _reminderTime != null,
+                onChanged: (bool value) {
+                  if (value) {
+                    _selectTime(context);
+                  } else {
+                    setState(() => _reminderTime = null);
+                  }
+                },
+              ),
+              if (_reminderTime != null)
+                TextButton.icon(
+                  onPressed: () => _selectTime(context),
+                  icon: const Icon(Icons.access_time, size: 18),
+                  label: const Text('Change Reminder Time'),
+                ),
+              
+              const SizedBox(height: 16),
               
               // Color Selection Section
               const Text('Task Color', style: TextStyle(fontWeight: FontWeight.bold)),

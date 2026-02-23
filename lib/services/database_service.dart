@@ -4,6 +4,7 @@ import 'package:path/path.dart';
 import '../models/task.dart';
 import '../models/task_completion.dart';
 import '../models/task_comment.dart';
+import 'notification_service.dart';
 
 import 'package:uuid/uuid.dart';
 
@@ -31,7 +32,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -51,7 +52,8 @@ class DatabaseService {
         uuid TEXT NOT NULL,
         createdAt TEXT NOT NULL,
         updatedAt TEXT NOT NULL,
-        isDeleted INTEGER NOT NULL DEFAULT 0
+        isDeleted INTEGER NOT NULL DEFAULT 0,
+        reminderTime TEXT
       )
     ''');
 
@@ -151,6 +153,10 @@ class DatabaseService {
         );
       }
     }
+
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE tasks ADD COLUMN reminderTime TEXT');
+    }
   }
 
   // INTENT-BASED APIs (FIX 2)
@@ -163,6 +169,18 @@ class DatabaseService {
       where: 'isDeleted = 0',
     );
     return result.map((json) => Task.fromMap(json)).toList();
+  }
+
+  /// Fetches a single task by its ID.
+  Future<Task?> getTaskById(int id) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'tasks',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (result.isEmpty) return null;
+    return Task.fromMap(result.first);
   }
 
   /// Fetches completion implementation for a specific date.
@@ -336,6 +354,12 @@ class DatabaseService {
         });
       }
     });
+
+    // Post-toggle logic: Update notification schedule
+    final task = await getTaskById(taskId);
+    if (task != null) {
+      await NotificationService.instance.updateTaskReminderState(task);
+    }
   }
 
   // COMMENTS API (Phase 2.5.1)

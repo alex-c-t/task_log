@@ -16,6 +16,9 @@ class Task with SyncEntity {
   /// Every task must have a color for consistent UI rendering.
   final String colorHex;
   
+  /// The time to show a daily reminder for this task (e.g., "09:00").
+  final String? reminderTime;
+  
   @override
   String uuid;
   @override
@@ -31,6 +34,7 @@ class Task with SyncEntity {
     required this.recurrenceType,
     this.weeklyDays,
     required this.colorHex,
+    this.reminderTime,
     String? uuid,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -51,6 +55,7 @@ class Task with SyncEntity {
       'recurrenceType': recurrenceType.toString().split('.').last,
       'weeklyDays': weeklyDays?.join(','), // Store as "1,3,5"
       'colorHex': colorHex,
+      'reminderTime': reminderTime,
       ...toMapSync(),
     };
   }
@@ -69,6 +74,7 @@ class Task with SyncEntity {
           ? map['weeklyDays'].toString().split(',').map((e) => int.parse(e)).toList()
           : null,
       colorHex: map['colorHex'] ?? "#E0E0E0", // Fallback for safety during schema migration
+      reminderTime: map['reminderTime'],
       uuid: map['uuid'],
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
       updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt']) : null,

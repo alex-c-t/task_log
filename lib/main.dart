@@ -3,10 +3,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/main_screen.dart';
+import 'services/notification_service.dart';
 
 /// The root widget of the Tasklet application.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.instance.init();
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
