@@ -24,6 +24,7 @@ class _MainScreenState extends State<MainScreen> {
 
   final GlobalKey<CalendarScreenState> _calendarKey = GlobalKey<CalendarScreenState>();
   final GlobalKey<TaskListScreenState> _taskListKey = GlobalKey<TaskListScreenState>();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   void _onTabTapped(int index) {
     if (index == _currentIndex) {
@@ -86,34 +87,50 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return PopScope(
-      canPop: _currentIndex == 0,
+      canPop: false, // Handle pop manually for better tab/drawer control
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
+
+        // 1. Close drawer if open
+        if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+          _scaffoldKey.currentState?.closeDrawer();
+          return;
+        }
+
+        // 2. Switch to Home Tab if not already there
         if (_currentIndex != 0) {
           setState(() {
             _currentIndex = 0;
           });
+          return;
+        }
+
+        // 3. Finally allow exit if on Home Tab
+        if (_currentIndex == 0) {
+          Navigator.of(context).pop();
         }
       },
       child: Scaffold(
+        key: _scaffoldKey,
         appBar: AppBar(
           title: Text(title),
+          leading: _currentIndex != 0
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => _onTabTapped(0),
+                )
+              : null, // Shows hamburger menu if null and drawer exists
           actions: [
-            if (_currentIndex == 1 || _currentIndex == 2)
-              IconButton(
-                icon: const Icon(Icons.add),
-                onPressed: () async {
-                  final date = _currentIndex == 1 ? _selectedDate : DateTime.now();
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => AddTaskScreen(initialStartDate: date)),
-                  );
-                  // After returning, we might need a way to refresh if we weren't using streams
-                  // Since child widgets load data in initState/didUpdateWidget, 
-                  // and IndexedStack keeps them alive, we might need to trigger a reload.
-                  // However, switching tabs or re-building MainScreen might help.
-                  setState(() {}); 
-                },
-              ),
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () async {
+                final date = _currentIndex == 1 ? _selectedDate : DateTime.now();
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => AddTaskScreen(initialStartDate: date)),
+                );
+                setState(() {});
+              },
+            ),
           ],
         ),
         drawer: Drawer(
