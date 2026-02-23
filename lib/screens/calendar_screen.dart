@@ -21,104 +21,94 @@ class CalendarScreen extends StatefulWidget {
   });
 
   @override
-  State<CalendarScreen> createState() => _CalendarScreenState();
+  State<CalendarScreen> createState() => CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
-  /// The month currently being viewed by the user.
-  late DateTime _focusedMonth;
+class CalendarScreenState extends State<CalendarScreen> {
+  late DateTime _initialMonth;
+  late PageController _pageController;
+  int _currentPage = 500;
+  /// The month currently being viewed by the user (for the header).
+  late ValueNotifier<DateTime> _focusedMonthNotifier;
 
-  /// A map of dates to the list of tasks active on that date.
-  /// This is pre-computed once per month change to ensure smooth grid rendering.
-  Map<DateTime, List<Task>> _taskMap = {};
-
-  /// A lookup map for task completion status.
-  /// Key: "taskId-YYYY-MM-DD", Value: true if completed.
-  /// This is a read-only rendering optimization.
-  Map<String, bool> _completionMap = {};
+  late Future<void> _initialLoadFuture;
+  final ValueNotifier<Map<String, bool>> _completionNotifier = ValueNotifier({});
+  List<Task> _allTasks = [];
 
   @override
   void initState() {
     super.initState();
-    // Default to the current month on launch.
     final now = DateTime.now();
-    _focusedMonth = DateTime(now.year, now.month);
-    _loadTasks();
+    _initialMonth = DateTime(now.year, now.month);
+    _focusedMonthNotifier = ValueNotifier(_initialMonth);
+    _pageController = PageController(initialPage: _currentPage);
+    _initialLoadFuture = _preloadData(_focusedMonthNotifier.value);
   }
 
-  /// Fetches all task definitions and computes their occurrences for the current month.
-  /// Also performs a one-time optimized fetch of completion status for the month.
-  Future<void> _loadTasks() async {
-    final firstDay = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
-    final lastDay = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0);
-
-    final tasks = await DatabaseService.instance.getAllTasks();
-    final completions = await DatabaseService.instance.getCompletionsForRange(firstDay, lastDay);
-
-    if (mounted) {
-      _computeTaskMap(tasks, completions);
-    }
+  Future<void> _preloadData(DateTime month) async {
+    _allTasks = await DatabaseService.instance.getAllTasks();
+    await _loadCompletionsForWindow(month);
   }
 
-  /// Computes which tasks fall on which days of the currently focused month.
-  void _computeTaskMap(List<Task> allTasks, List<dynamic> completions) {
-    final daysInMonth = _getDaysInMonth(_focusedMonth);
-    final Map<DateTime, List<Task>> newMap = {};
-    final Map<String, bool> newCompletionMap = {};
-
-    // Build completion lookup key: "taskId-dateStr"
+  Future<void> _loadCompletionsForWindow(DateTime centerMonth) async {
+    final start = DateTime(centerMonth.year, centerMonth.month - 1, 1);
+    final end = DateTime(centerMonth.year, centerMonth.month + 2, 0, 23, 59, 59);
+    
+    final completions = await DatabaseService.instance.getCompletionsForRange(start, end);
+    
+    // Update notifier without a full setState/rebuild of the parent
+    final current = Map<String, bool>.from(_completionNotifier.value);
+    bool changed = false;
     for (var completion in completions) {
       final key = "${completion.taskId}-${completion.date}";
-      newCompletionMap[key] = completion.isCompleted;
-    }
-
-    for (int day = 1; day <= daysInMonth; day++) {
-      final date = DateTime(_focusedMonth.year, _focusedMonth.month, day);
-      final activeTasks = allTasks.where((task) {
-        return RecurrenceHelper.isTaskActiveOnDate(task, date);
-      }).toList();
-
-      if (activeTasks.isNotEmpty) {
-        newMap[date] = activeTasks;
+      if (current[key] != completion.isCompleted) {
+        current[key] = completion.isCompleted;
+        changed = true;
       }
     }
-
-    setState(() {
-      _taskMap = newMap;
-      _completionMap = newCompletionMap;
-    });
+    if (changed) {
+      _completionNotifier.value = current;
+    }
   }
 
-  /// Navigates the calendar focus by a given number of months.
-  void _changeMonth(int delta) {
-    setState(() {
-      _focusedMonth = DateTime(
-        _focusedMonth.year,
-        _focusedMonth.month + delta,
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  /// Public method to reset to today's month
+  void resetToToday() {
+    if (_currentPage != 500) {
+      _pageController.animateToPage(
+        500,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
       );
-      _taskMap.clear(); 
+    }
+  }
+
+  int _refreshCount = 0;
+
+  /// Public method to refresh all loaded data
+  void refresh() {
+    setState(() {
+      _refreshCount++;
+      _initialLoadFuture = _preloadData(_focusedMonthNotifier.value);
     });
-    _loadTasks();
   }
 
-  /// Calculates the total number of days in the currently focused month.
-  int _getDaysInMonth(DateTime monthDate) {
-    return DateTime(monthDate.year, monthDate.month + 1, 0).day;
-  }
-
-  int _getFirstWeekdayOfMonth(DateTime monthDate) {
-    return DateTime(monthDate.year, monthDate.month, 1).weekday;
+  void _onPageChanged(int page) {
+    final monthsDiff = page - 500;
+    final newMonth = DateTime(_initialMonth.year, _initialMonth.month + monthsDiff);
+    _currentPage = page;
+    _focusedMonthNotifier.value = newMonth;
+    // Proactively load completions for the new window if needed.
+    _loadCompletionsForWindow(newMonth);
   }
 
   @override
   Widget build(BuildContext context) {
-    final daysInMonth = _getDaysInMonth(_focusedMonth);
-    final firstWeekday = _getFirstWeekdayOfMonth(_focusedMonth);
-    
-    // Calculate total items needed for the grid.
-    final offset = CalendarConfig.getGridOffset(firstWeekday);
-    final totalCells = daysInMonth + offset;
-
     return Column(
       children: [
         // Month Navigation Header
@@ -129,23 +119,34 @@ class _CalendarScreenState extends State<CalendarScreen> {
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left),
-                onPressed: () => _changeMonth(-1),
+                onPressed: () => _pageController.previousPage(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                ),
                 tooltip: 'Previous Month',
               ),
-              Text(
-                DateFormat.yMMMM().format(_focusedMonth),
-                style: Theme.of(context).textTheme.titleLarge,
+              ValueListenableBuilder<DateTime>(
+                valueListenable: _focusedMonthNotifier,
+                builder: (context, focusedMonth, _) {
+                  return Text(
+                    DateFormat.yMMMM().format(focusedMonth),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  );
+                },
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
-                onPressed: () => _changeMonth(1),
+                onPressed: () => _pageController.nextPage(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                ),
                 tooltip: 'Next Month',
               ),
             ],
           ),
         ),
         
-        // Weekday Labels
+        // Weekday Labels (Fixed)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: Row(
@@ -154,7 +155,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 child: Center(
                   child: Text(
                     dayName,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
               );
@@ -164,43 +165,146 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
         const Divider(),
 
-        // Calendar Grid
+        // Calendar Grid as PageView
         Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.all(8.0),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: 0.8, 
-              mainAxisSpacing: 4,
-              crossAxisSpacing: 4,
-            ),
-            itemCount: totalCells,
-            itemBuilder: (context, index) {
-              if (index < offset) {
-                return const SizedBox.shrink();
-              }
-
-              final dayNumber = index - offset + 1;
-              final date = DateTime(_focusedMonth.year, _focusedMonth.month, dayNumber);
-              final now = DateTime.now();
-              final isToday = date.year == now.year &&
-                              date.month == now.month &&
-                              date.day == now.day;
-
-              final dayTasks = _taskMap[date] ?? [];
-
-              return _CalendarDayCell(
-                dayNumber: dayNumber,
-                isToday: isToday,
-                tasks: dayTasks,
-                date: date,
-                completionMap: _completionMap,
-                onTap: () => widget.onDateSelected(date),
-              );
-            },
-          ),
+          child: _allTasks.isEmpty
+              ? FutureBuilder(
+                  future: _initialLoadFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    return _buildPageView();
+                  },
+                )
+              : _buildPageView(),
         ),
       ],
+    );
+  }
+
+  Widget _buildPageView() {
+    return PageView.builder(
+      controller: _pageController,
+      onPageChanged: _onPageChanged,
+      itemBuilder: (context, pageIndex) {
+        final monthsDiff = pageIndex - 500;
+        final month = DateTime(_initialMonth.year, _initialMonth.month + monthsDiff);
+        return _MonthGrid(
+          key: ValueKey("${month.year}-${month.month}-$_refreshCount"),
+          month: month,
+          allTasks: _allTasks,
+          completionNotifier: _completionNotifier,
+          onDateSelected: widget.onDateSelected,
+        );
+      },
+    );
+  }
+}
+
+class _MonthGrid extends StatefulWidget {
+  final DateTime month;
+  final List<Task> allTasks;
+  final ValueNotifier<Map<String, bool>> completionNotifier;
+  final Function(DateTime) onDateSelected;
+
+  const _MonthGrid({
+    super.key,
+    required this.month,
+    required this.allTasks,
+    required this.completionNotifier,
+    required this.onDateSelected,
+  });
+
+  @override
+  State<_MonthGrid> createState() => _MonthGridState();
+}
+
+class _MonthGridState extends State<_MonthGrid> with AutomaticKeepAliveClientMixin {
+  late Map<DateTime, List<Task>> _taskMap;
+  
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _computeTaskMap();
+  }
+
+  @override
+  void didUpdateWidget(_MonthGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.allTasks != widget.allTasks || oldWidget.month != widget.month) {
+      _computeTaskMap();
+    }
+  }
+
+  void _computeTaskMap() {
+    final month = widget.month;
+    final firstDay = DateTime(month.year, month.month, 1);
+    final lastDay = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
+
+    final potentialTasks = widget.allTasks.where((task) {
+      return task.startDate.isBefore(lastDay) && task.endDate.isAfter(firstDay);
+    }).toList();
+
+    final Map<DateTime, List<Task>> newMap = {};
+    for (int day = 1; day <= lastDay.day; day++) {
+      final date = DateTime(month.year, month.month, day);
+      final activeTasks = potentialTasks.where((task) {
+        return RecurrenceHelper.isTaskActiveOnDate(task, date);
+      }).toList();
+
+      if (activeTasks.isNotEmpty) {
+        newMap[date] = activeTasks;
+      }
+    }
+    _taskMap = newMap;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final daysInMonth = DateTime(widget.month.year, widget.month.month + 1, 0).day;
+    final firstWeekday = DateTime(widget.month.year, widget.month.month, 1).weekday;
+    final offset = CalendarConfig.getGridOffset(firstWeekday);
+    final totalCells = daysInMonth + offset;
+
+    return ValueListenableBuilder<Map<String, bool>>(
+      valueListenable: widget.completionNotifier,
+      builder: (context, completionMap, _) {
+        return GridView.builder(
+          padding: const EdgeInsets.all(8.0),
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio: 0.5,
+            mainAxisSpacing: 0,
+            crossAxisSpacing: 0,
+          ),
+          itemCount: totalCells,
+          itemBuilder: (context, index) {
+            if (index < offset) return const SizedBox.shrink();
+
+            final dayNumber = index - offset + 1;
+            final date = DateTime(widget.month.year, widget.month.month, dayNumber);
+            final now = DateTime.now();
+            final isToday = date.year == now.year &&
+                            date.month == now.month &&
+                            date.day == now.day;
+
+            return _CalendarDayCell(
+              dayNumber: dayNumber,
+              isToday: isToday,
+              tasks: _taskMap[date] ?? [],
+              date: date,
+              completionMap: completionMap,
+              onTap: () => widget.onDateSelected(date),
+            );
+          },
+        );
+      },
     );
   }
 }

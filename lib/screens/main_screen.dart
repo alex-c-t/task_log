@@ -22,14 +22,35 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   DateTime _selectedDate = DateTime.now();
 
+  final GlobalKey<CalendarScreenState> _calendarKey = GlobalKey<CalendarScreenState>();
+  final GlobalKey<TaskListScreenState> _taskListKey = GlobalKey<TaskListScreenState>();
+
   void _onTabTapped(int index) {
-    setState(() {
-      _currentIndex = index;
-      // If user taps "Today" tab, reset date to today
-      if (index == 1) {
-        _selectedDate = DateTime.now();
+    if (index == _currentIndex) {
+      // Handle double-tap
+      if (index == 0) {
+        _calendarKey.currentState?.resetToToday();
+        _calendarKey.currentState?.refresh();
+      } else if (index == 1) {
+        setState(() {
+          _selectedDate = DateTime.now();
+        });
+      } else if (index == 2) {
+        _taskListKey.currentState?.resetToToday();
       }
-    });
+    } else {
+      setState(() {
+        _currentIndex = index;
+        // If user taps "Today" tab for the first time, sync to today
+        if (index == 1) {
+          _selectedDate = DateTime.now();
+        }
+      });
+      // Refresh calendar when switching to it to show new changes
+      if (index == 0) {
+        _calendarKey.currentState?.refresh();
+      }
+    }
   }
 
   void _onDaySelected(DateTime date) {
@@ -49,12 +70,12 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
-      CalendarScreen(onDateSelected: _onDaySelected),
+      CalendarScreen(key: _calendarKey, onDateSelected: _onDaySelected),
       DayDetailScreen(
         selectedDate: _selectedDate,
         onDateChanged: (date) => setState(() => _selectedDate = date),
       ),
-      const TaskListScreen(),
+      TaskListScreen(key: _taskListKey),
     ];
 
     String title = 'Tasklet';

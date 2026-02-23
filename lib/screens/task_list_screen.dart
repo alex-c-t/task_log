@@ -8,12 +8,18 @@ class TaskListScreen extends StatefulWidget {
   const TaskListScreen({super.key});
 
   @override
-  State<TaskListScreen> createState() => _TaskListScreenState();
+  State<TaskListScreen> createState() => TaskListScreenState();
 }
 
-class _TaskListScreenState extends State<TaskListScreen> {
+class TaskListScreenState extends State<TaskListScreen> {
   DateTime _focusedMonth = DateTime.now();
   String _filter = 'Active'; // Active, Completed, All
+
+  void resetToToday() {
+    setState(() {
+      _focusedMonth = DateTime.now();
+    });
+  }
 
   void _changeMonth(int delta) {
     setState(() {
