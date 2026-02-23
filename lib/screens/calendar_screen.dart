@@ -404,7 +404,7 @@ class _TaskIndicators extends StatelessWidget {
   Widget build(BuildContext context) {
     if (tasks.isEmpty) return const SizedBox.shrink();
 
-    const int maxVisibleDots = 3;
+    const int maxVisibleDots = 5;
     final visibleTasks = tasks.take(maxVisibleDots).toList();
     final overflowCount = tasks.length - maxVisibleDots;
     final dateStr = date.toIso8601String().substring(0, 10);
@@ -424,17 +424,17 @@ class _TaskIndicators extends StatelessWidget {
 
             return Container(
               margin: const EdgeInsets.only(bottom: 2),
-              height: 14,
+              height: 11,
               padding: const EdgeInsets.symmetric(horizontal: 2),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(3),
                 color: baseColor.withValues(alpha: isCompleted ? 0.2 : 1.0),
               ),
               child: Row(
                 children: [
                   Icon(
                     Icons.check_circle_outline,
-                    size: 10,
+                    size: 8,
                     color: displayTextColor,
                   ),
                   const SizedBox(width: 2),
@@ -444,7 +444,7 @@ class _TaskIndicators extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: 8,
                         fontWeight: FontWeight.w500,
                         color: displayTextColor,
                         decoration: isCompleted ? TextDecoration.lineThrough : null,
