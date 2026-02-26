@@ -5,6 +5,7 @@ import '../services/database_service.dart';
 import '../utils/recurrence_helper.dart';
 import 'day_detail_screen.dart';
 import '../utils/calendar_config.dart';
+import '../widgets/month_year_picker.dart';
 
 /// A home screen providing a month-view calendar grid.
 ///
@@ -88,6 +89,19 @@ class CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+  /// Jump to a specific month
+  void _jumpToMonth(DateTime targetMonth) {
+    final monthsDiff = (targetMonth.year - _initialMonth.year) * 12 +
+                       (targetMonth.month - _initialMonth.month);
+    final targetPage = 500 + monthsDiff;
+
+    _pageController.animateToPage(
+      targetPage,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
   int _refreshCount = 0;
 
   /// Public method to refresh all loaded data
@@ -128,9 +142,31 @@ class CalendarScreenState extends State<CalendarScreen> {
               ValueListenableBuilder<DateTime>(
                 valueListenable: _focusedMonthNotifier,
                 builder: (context, focusedMonth, _) {
-                  return Text(
-                    DateFormat.yMMMM().format(focusedMonth),
-                    style: Theme.of(context).textTheme.titleLarge,
+                  return InkWell(
+                    onTap: () async {
+                      final selected = await showMonthYearPicker(
+                        context: context,
+                        initialDate: focusedMonth,
+                      );
+                      if (selected != null) {
+                        _jumpToMonth(selected);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            DateFormat.yMMMM().format(focusedMonth),
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.arrow_drop_down, size: 20),
+                        ],
+                      ),
+                    ),
                   );
                 },
               ),

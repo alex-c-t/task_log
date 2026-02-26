@@ -6,6 +6,7 @@ class TaskTile extends StatelessWidget {
   final bool isCompleted;
   final VoidCallback onToggle;
   final VoidCallback? onEdit;
+  final VoidCallback? onTap;
   final String? comment;
   final VoidCallback? onCommentTap;
   final bool isHighlighted;
@@ -16,6 +17,7 @@ class TaskTile extends StatelessWidget {
     required this.isCompleted,
     required this.onToggle,
     this.onEdit,
+    this.onTap,
     this.comment,
     this.onCommentTap,
     this.isHighlighted = false,
@@ -34,14 +36,21 @@ class TaskTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           )
         : null,
-      child: CheckboxListTile(
-        title: Text(
-          title,
-          style: TextStyle(
-            decoration: isCompleted ? TextDecoration.lineThrough : null,
-            decorationColor: isCompleted ? Colors.grey[800] : null,
-            decorationThickness: 2.0,
-            color: isCompleted ? Colors.grey : null,
+      child: ListTile(
+        leading: Checkbox(
+          value: isCompleted,
+          onChanged: (_) => onToggle(),
+        ),
+        title: InkWell(
+          onTap: onTap,
+          child: Text(
+            title,
+            style: TextStyle(
+              decoration: isCompleted ? TextDecoration.lineThrough : null,
+              decorationColor: isCompleted ? Colors.grey[800] : null,
+              decorationThickness: 2.0,
+              color: isCompleted ? Colors.grey : null,
+            ),
           ),
         ),
         subtitle: GestureDetector(
@@ -74,9 +83,7 @@ class TaskTile extends StatelessWidget {
                   ),
           ),
         ),
-        value: isCompleted,
-        onChanged: (_) => onToggle(),
-        secondary: onEdit != null
+        trailing: onEdit != null
             ? IconButton(
                 icon: const Icon(Icons.edit),
                 onPressed: onEdit,

@@ -5,7 +5,7 @@ import '../models/task.dart';
 import '../services/database_service.dart';
 import '../utils/recurrence_helper.dart';
 import '../widgets/task_tile.dart';
-import 'add_task_screen.dart';
+import 'task_detail_screen.dart';
 
 /// This screen allows users to:
 /// 1. See all tasks active on the [selectedDate] based on recurrence rules.
@@ -243,14 +243,14 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
                       comment: comment?.text,
                       onCommentTap: () => _handleComment(task),
                       onToggle: () => _toggleTask(task.id!),
-                      onEdit: () async {
+                      onTap: () async {
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => AddTaskScreen(taskToEdit: task),
+                            builder: (_) => TaskDetailScreen(task: task),
                           ),
                         );
-                        _loadData(); // Refresh tasks
+                        _loadData(); // Refresh in case of edits/deletes
                       },
                     );
                   },

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/task.dart';
 import '../services/database_service.dart';
-import 'add_task_screen.dart';
+import 'task_detail_screen.dart';
 
 class TaskListScreen extends StatefulWidget {
   const TaskListScreen({super.key});
@@ -61,10 +61,10 @@ class TaskListScreenState extends State<TaskListScreen> {
     }).toList();
   }
 
-  void _navigateToEdit(Task task) async {
+  void _navigateToDetail(Task task) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => AddTaskScreen(taskToEdit: task),
+        builder: (context) => TaskDetailScreen(task: task),
       ),
     );
     setState(() {}); // Refresh list on return
@@ -148,8 +148,8 @@ class TaskListScreenState extends State<TaskListScreen> {
                           ),
                       ),
                       subtitle: Text(_formatRecurrence(task)),
-                      onTap: () => _navigateToEdit(task),
-                      trailing: const Icon(Icons.edit, size: 20),
+                      onTap: () => _navigateToDetail(task),
+                      trailing: const Icon(Icons.chevron_right, size: 20),
                     ),
                   );
                 },
