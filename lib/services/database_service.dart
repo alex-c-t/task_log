@@ -336,6 +336,7 @@ class DatabaseService extends ChangeNotifier {
           'completions',
           {
             'isCompleted': newStatus ? 1 : 0,
+            'isDeleted': 0,
             'updatedAt': now
           },
           where: 'taskId = ? AND date = ?',

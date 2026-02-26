@@ -67,10 +67,29 @@ class NotificationService {
 
     if (response.actionId == 'mark_completed') {
       try {
-        await DatabaseService.instance.toggleTaskCompletion(taskId, DateTime.now(), forceStatus: true);
+        // 1. Cancel the current notification first (dismisses from shade)
         await instance._notificationsPlugin.cancel(taskId);
+
+        // 2. Mark task as completed. Use skipNotificationUpdate to isolate
+        //    the DB write from notification scheduling errors, ensuring
+        //    notifyListeners() always fires after a successful DB update.
+        await DatabaseService.instance.toggleTaskCompletion(
+          taskId, DateTime.now(),
+          forceStatus: true,
+          skipNotificationUpdate: true,
+        );
+
+        // 3. Reschedule notification for tomorrow (separate error boundary)
+        try {
+          final task = await DatabaseService.instance.getTaskById(taskId);
+          if (task != null) {
+            await instance.updateTaskReminderState(task);
+          }
+        } catch (e) {
+          debugPrint('NotificationService: Error rescheduling after mark_completed: $e');
+        }
       } catch (e) {
-        // Handle error
+        debugPrint('NotificationService: Error handling mark_completed action: $e');
       }
     } else {
       // Tap on body - Navigate to Day Detail for today (by re-rooting to MainScreen on tab 1)
@@ -185,27 +204,29 @@ class NotificationService {
 void notificationTapBackground(NotificationResponse response) async {
   DartPluginRegistrant.ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   if (response.actionId == 'mark_completed') {
     final payload = response.payload;
     if (payload != null) {
       final taskId = int.tryParse(payload);
       if (taskId != null) {
         try {
-          // Process completion in background
-          final now = DateTime.now();
-          await DatabaseService.instance.toggleTaskCompletion(
-            taskId, 
-            now, 
-            skipNotificationUpdate: true, 
-            forceStatus: true
-          );
-          
-          // Dismiss the notification
+          // 1. Dismiss the notification first
           final FlutterLocalNotificationsPlugin bgPlugin = FlutterLocalNotificationsPlugin();
           await bgPlugin.cancel(taskId);
+
+          // 2. Mark as completed in DB.
+          //    skipNotificationUpdate: true because NotificationService
+          //    cannot be fully initialized in a background isolate.
+          //    Rescheduling will happen when the app resumes.
+          await DatabaseService.instance.toggleTaskCompletion(
+            taskId,
+            DateTime.now(),
+            skipNotificationUpdate: true,
+            forceStatus: true,
+          );
         } catch (e) {
-          debugPrint('Error in background notification action: $e');
+          debugPrint('NotificationService: Error in background mark_completed: $e');
         }
       }
     }
