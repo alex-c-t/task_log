@@ -20,28 +20,62 @@ class DayDetailScreen extends StatefulWidget {
   /// The date for which tasks are being displayed.
   final DateTime selectedDate;
   final Function(DateTime)? onDateChanged;
+  final int? highlightTaskId;
 
   const DayDetailScreen({
     super.key,
     required this.selectedDate,
     this.onDateChanged,
+    this.highlightTaskId,
   });
 
   @override
   State<DayDetailScreen> createState() => _DayDetailScreenState();
 }
 
-class _DayDetailScreenState extends State<DayDetailScreen> {
+class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingObserver {
   late DateTime _currentDate;
   List<Task> _allTasks = [];
   Map<int, bool> _completionStatus = {}; // taskId -> isCompleted
   Map<int, TaskComment> _commentsMap = {}; // taskId -> TaskComment
+  int? _highlightTaskId;
 
   @override
   void initState() {
     super.initState();
     _currentDate = widget.selectedDate;
+    _highlightTaskId = widget.highlightTaskId;
+    _startHighlightTimer();
+    
     _loadData();
+    DatabaseService.instance.addListener(_loadData);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  void _startHighlightTimer() {
+    if (_highlightTaskId != null) {
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted) {
+          setState(() {
+            _highlightTaskId = null;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    DatabaseService.instance.removeListener(_loadData);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadData();
+    }
   }
 
   @override
@@ -50,6 +84,12 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     if (widget.selectedDate != oldWidget.selectedDate) {
       _currentDate = widget.selectedDate;
       _loadData();
+    }
+    if (widget.highlightTaskId != oldWidget.highlightTaskId) {
+      setState(() {
+        _highlightTaskId = widget.highlightTaskId;
+      });
+      _startHighlightTimer();
     }
   }
 
@@ -199,6 +239,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                     return TaskTile(
                       title: task.title,
                       isCompleted: isCompleted,
+                      isHighlighted: task.id == _highlightTaskId,
                       comment: comment?.text,
                       onCommentTap: () => _handleComment(task),
                       onToggle: () => _toggleTask(task.id!),

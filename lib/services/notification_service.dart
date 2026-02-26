@@ -1,10 +1,13 @@
-
+import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import '../models/task.dart';
 import '../services/database_service.dart';
+import '../screens/main_screen.dart';
+import '../main.dart';
 
 class NotificationService {
   static final NotificationService instance = NotificationService._();
@@ -26,7 +29,7 @@ class NotificationService {
         DarwinNotificationCategory(
           'task_category',
           actions: [
-            DarwinNotificationAction.plain('mark_done', 'Mark as Done'),
+            DarwinNotificationAction.plain('mark_completed', 'Mark as Completed'),
           ],
         ),
       ],
@@ -57,18 +60,29 @@ class NotificationService {
   }
 
   static void _onNotificationResponse(NotificationResponse response) async {
-    if (response.actionId == 'mark_done') {
-      final payload = response.payload;
-      if (payload != null) {
-        final taskId = int.tryParse(payload);
-        if (taskId != null) {
-          try {
-            await DatabaseService.instance.toggleTaskCompletion(taskId, DateTime.now());
-          } catch (e) {
-            // Log or handle error
-          }
-        }
+    final payload = response.payload;
+    if (payload == null) return;
+    final taskId = int.tryParse(payload);
+    if (taskId == null) return;
+
+    if (response.actionId == 'mark_completed') {
+      try {
+        await DatabaseService.instance.toggleTaskCompletion(taskId, DateTime.now(), forceStatus: true);
+        await instance._notificationsPlugin.cancel(taskId);
+      } catch (e) {
+        // Handle error
       }
+    } else {
+      // Tap on body - Navigate to Day Detail for today (by re-rooting to MainScreen on tab 1)
+      TaskLogApp.navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => MainScreen(
+            initialTab: 1,
+            highlightTaskId: taskId,
+          ),
+        ),
+        (route) => false,
+      );
     }
   }
 
@@ -112,12 +126,13 @@ class NotificationService {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
 
-    print('NOTIFICATION_DEBUG: Scheduling "${task.title}" for $scheduledDate (Local Now: $now)');
+    // Debug log for verification (can be re-enabled if needed)
+    // print('NOTIFICATION_DEBUG: Scheduling "${task.title}" for $scheduledDate (Local Now: $now)');
 
     await _notificationsPlugin.zonedSchedule(
       task.id!,
-      'Task Reminder',
-      'It\'s time for: ${task.title}',
+      task.title,
+      'Daily Goal',
       scheduledDate,
       NotificationDetails(
         android: AndroidNotificationDetails(
@@ -126,11 +141,23 @@ class NotificationService {
           channelDescription: 'Notifications for task reminders',
           importance: Importance.max,
           priority: Priority.high,
+          ticker: task.title,
+          color: Color(int.parse(task.colorHex.replaceFirst('#', '0xFF'))),
+          ledColor: Color(int.parse(task.colorHex.replaceFirst('#', '0xFF'))),
+          ledOnMs: 1000,
+          ledOffMs: 500,
+          showWhen: true,
+          category: AndroidNotificationCategory.reminder,
+          styleInformation: const BigTextStyleInformation(
+            'Scheduled for today',
+            contentTitle: null,
+            summaryText: 'Tasklet',
+          ),
           actions: [
             AndroidNotificationAction(
-              'mark_done',
-              'Mark as Done',
-              showsUserInterface: true,
+              'mark_completed',
+              'Mark as Completed',
+              showsUserInterface: false,
             ),
           ],
         ),
@@ -156,15 +183,29 @@ class NotificationService {
 
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse response) async {
-  if (response.actionId == 'mark_done') {
+  DartPluginRegistrant.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  if (response.actionId == 'mark_completed') {
     final payload = response.payload;
     if (payload != null) {
       final taskId = int.tryParse(payload);
       if (taskId != null) {
         try {
-          await DatabaseService.instance.toggleTaskCompletion(taskId, DateTime.now());
+          // Process completion in background
+          final now = DateTime.now();
+          await DatabaseService.instance.toggleTaskCompletion(
+            taskId, 
+            now, 
+            skipNotificationUpdate: true, 
+            forceStatus: true
+          );
+          
+          // Dismiss the notification
+          final FlutterLocalNotificationsPlugin bgPlugin = FlutterLocalNotificationsPlugin();
+          await bgPlugin.cancel(taskId);
         } catch (e) {
-          // Handle or log error
+          debugPrint('Error in background notification action: $e');
         }
       }
     }

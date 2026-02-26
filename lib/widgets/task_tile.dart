@@ -8,6 +8,7 @@ class TaskTile extends StatelessWidget {
   final VoidCallback? onEdit;
   final String? comment;
   final VoidCallback? onCommentTap;
+  final bool isHighlighted;
 
   const TaskTile({
     super.key,
@@ -17,11 +18,22 @@ class TaskTile extends StatelessWidget {
     this.onEdit,
     this.comment,
     this.onCommentTap,
+    this.isHighlighted = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Card(
+      color: isHighlighted ? theme.colorScheme.primaryContainer : null,
+      margin: isHighlighted ? const EdgeInsets.symmetric(horizontal: 4, vertical: 8) : const EdgeInsets.all(4),
+      elevation: isHighlighted ? 4 : 1,
+      shape: isHighlighted
+        ? RoundedRectangleBorder(
+            side: BorderSide(color: theme.colorScheme.primary, width: 3),
+            borderRadius: BorderRadius.circular(12),
+          )
+        : null,
       child: CheckboxListTile(
         title: Text(
           title,

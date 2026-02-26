@@ -12,15 +12,24 @@ import 'add_task_screen.dart';
 /// - **BottomNavigationBar**: For primary filtered views (Calendar, Today, Tasks).
 /// - **Drawer**: For utility views (Settings, About).
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final int? initialTab;
+  final int? highlightTaskId;
+
+  const MainScreen({super.key, this.initialTab, this.highlightTaskId});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   DateTime _selectedDate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialTab ?? 0;
+  }
 
   final GlobalKey<CalendarScreenState> _calendarKey = GlobalKey<CalendarScreenState>();
   final GlobalKey<TaskListScreenState> _taskListKey = GlobalKey<TaskListScreenState>();
@@ -75,6 +84,7 @@ class _MainScreenState extends State<MainScreen> {
       DayDetailScreen(
         selectedDate: _selectedDate,
         onDateChanged: (date) => setState(() => _selectedDate = date),
+        highlightTaskId: widget.highlightTaskId,
       ),
       TaskListScreen(key: _taskListKey),
     ];

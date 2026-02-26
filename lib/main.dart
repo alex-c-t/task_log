@@ -18,6 +18,8 @@ void main() async {
 }
 
 class TaskLogApp extends StatelessWidget {
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   const TaskLogApp({super.key});
 
   @override
@@ -25,6 +27,7 @@ class TaskLogApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Tasklet',
       themeMode: themeProvider.themeMode,
       theme: ThemeData(

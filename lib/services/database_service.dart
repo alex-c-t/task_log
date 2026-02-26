@@ -1,4 +1,4 @@
-
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/task.dart';
@@ -8,7 +8,7 @@ import 'notification_service.dart';
 
 import 'package:uuid/uuid.dart';
 
-class DatabaseService {
+class DatabaseService extends ChangeNotifier {
   static final DatabaseService instance = DatabaseService._init();
   static Database? _database;
 
@@ -315,7 +315,7 @@ class DatabaseService {
   /// BUT we want to TOGGLE. So we need to read current state first?
   /// Or utilize the `isCompleted` passed?
   /// The requirement says "Toggle isCompleted if a row exists".
-  Future<void> toggleTaskCompletion(int taskId, DateTime date) async {
+  Future<void> toggleTaskCompletion(int taskId, DateTime date, {bool skipNotificationUpdate = false, bool? forceStatus}) async {
     final db = await instance.database;
     final dateStr = date.toIso8601String().substring(0, 10);
     final now = DateTime.now().toUtc().toIso8601String();
@@ -329,24 +329,24 @@ class DatabaseService {
       );
 
       if (existing.isNotEmpty) {
-        // Toggle
+        // Toggle or Force
         final currentStatus = existing.first['isCompleted'] == 1;
+        final newStatus = forceStatus ?? !currentStatus;
         await txn.update(
           'completions',
           {
-            'isCompleted': currentStatus ? 0 : 1,
+            'isCompleted': newStatus ? 1 : 0,
             'updatedAt': now
           },
           where: 'taskId = ? AND date = ?',
           whereArgs: [taskId, dateStr],
         );
       } else {
-        // Insert new as completed (since default is pending/uncompleted)
-        // If user clicks toggle on pending, it becomes completed.
+        // Insert new
         await txn.insert('completions', {
           'taskId': taskId,
           'date': dateStr,
-          'isCompleted': 1, // Default to completed when created via toggle
+          'isCompleted': (forceStatus ?? true) ? 1 : 0, 
           'uuid': const Uuid().v4(),
           'createdAt': now,
           'updatedAt': now,
@@ -356,10 +356,13 @@ class DatabaseService {
     });
 
     // Post-toggle logic: Update notification schedule
-    final task = await getTaskById(taskId);
-    if (task != null) {
-      await NotificationService.instance.updateTaskReminderState(task);
+    if (!skipNotificationUpdate) {
+      final task = await getTaskById(taskId);
+      if (task != null) {
+        await NotificationService.instance.updateTaskReminderState(task);
+      }
     }
+    notifyListeners();
   }
 
   // COMMENTS API (Phase 2.5.1)
