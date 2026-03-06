@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../providers/preferences_provider.dart';
 import '../models/task.dart';
 import '../services/database_service.dart';
 import 'task_detail_screen.dart';
@@ -91,6 +93,7 @@ class TaskListScreenState extends State<TaskListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPro = Provider.of<PreferencesProvider>(context).isProMode;
     return Column(
       children: [
         // Month Pagination Controls moved from AppBar to Body
@@ -126,26 +129,28 @@ class TaskListScreenState extends State<TaskListScreen> {
               _buildFilterChip('Completed'),
               const SizedBox(width: 8),
               _buildFilterChip('All'),
-              const SizedBox(width: 16),
-              const VerticalDivider(width: 1),
-              const SizedBox(width: 16),
-              ChoiceChip(
-                label: const Text('All Categories'),
-                selected: _categoryFilter == null,
-                onSelected: (selected) {
-                  if (selected) setState(() => _categoryFilter = null);
-                },
-              ),
-              ..._categories.map((cat) => Padding(
-                padding: const EdgeInsets.only(left: 8.0),
-                child: ChoiceChip(
-                  label: Text(cat),
-                  selected: _categoryFilter == cat,
+              if (isPro) ...[
+                const SizedBox(width: 16),
+                const VerticalDivider(width: 1),
+                const SizedBox(width: 16),
+                ChoiceChip(
+                  label: const Text('All Categories'),
+                  selected: _categoryFilter == null,
                   onSelected: (selected) {
-                    setState(() => _categoryFilter = selected ? cat : null);
+                    if (selected) setState(() => _categoryFilter = null);
                   },
                 ),
-              )),
+                ..._categories.map((cat) => Padding(
+                  padding: const EdgeInsets.only(left: 8.0),
+                  child: ChoiceChip(
+                    label: Text(cat),
+                    selected: _categoryFilter == cat,
+                    onSelected: (selected) {
+                      setState(() => _categoryFilter = selected ? cat : null);
+                    },
+                  ),
+                )),
+              ],
             ],
           ),
         ),
@@ -161,7 +166,7 @@ class TaskListScreenState extends State<TaskListScreen> {
               final allTasks = snapshot.data ?? [];
               final scheduledTasks = allTasks.where((t) => t.targetCompletions == null).toList();
 
-              return _buildTaskList(scheduledTasks);
+              return _buildTaskList(scheduledTasks, isPro);
             },
           ),
         ),
@@ -169,7 +174,7 @@ class TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
-  Widget _buildTaskList(List<Task> tasks) {
+  Widget _buildTaskList(List<Task> tasks, bool isPro) {
     if (tasks.isEmpty) {
       return const Center(child: Text('No tasks found'));
     }
@@ -235,7 +240,7 @@ class TaskListScreenState extends State<TaskListScreen> {
               ],
             ),
             subtitle: Text(
-              '${task.category != null ? "[${task.category}] " : ""}${_formatRecurrence(task)}',
+              '${(isPro && task.category != null) ? "[${task.category}] " : ""}${_formatRecurrence(task)}',
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
             onTap: () => _navigateToDetail(task),

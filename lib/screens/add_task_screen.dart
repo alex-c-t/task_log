@@ -1,6 +1,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../providers/preferences_provider.dart';
 import '../models/task.dart';
 import '../models/subtask.dart';
 import '../services/database_service.dart';
@@ -47,6 +49,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   late List<int> _selectedWeeklyDays;
   late String _selectedColor;
   TimeOfDay? _reminderTime;
+  String? _recurrenceRule;
   List<SubTask> _subTasks = [];
   final _subtaskController = TextEditingController();
   String? _selectedCategory;
@@ -100,6 +103,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     _selectedWeeklyDays = List.of(editTask?.weeklyDays ?? []);
     _selectedColor = editTask?.colorHex ?? _colorPalette.first;
     _selectedCategory = editTask?.category;
+    _recurrenceRule = editTask?.recurrenceRule;
     _recurrenceIntervalController.text = (editTask?.recurrenceInterval ?? 1).toString();
     
     if (editTask?.reminderTime != null) {
@@ -218,6 +222,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         category: _selectedCategory,
         recurrenceInterval: int.tryParse(_recurrenceIntervalController.text) ?? 1,
         isFinished: widget.taskToEdit?.isFinished ?? 0,
+        recurrenceRule: _recurrenceRule,
       );
 
       int taskId;
@@ -298,6 +303,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPro = Provider.of<PreferencesProvider>(context).isProMode;
     final colorScheme = Theme.of(context).colorScheme;
     final isEditMode = widget.taskToEdit != null;
 
@@ -324,93 +330,95 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 decoration: const InputDecoration(labelText: 'Task Title'),
                 validator: (value) => value == null || value.isEmpty ? 'Please enter a title' : null,
               ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Category (Optional)',
-                  prefixIcon: Icon(Icons.label_outline),
+              if (isPro) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedCategory,
+                  decoration: const InputDecoration(
+                    labelText: 'Category (Optional)',
+                    prefixIcon: Icon(Icons.label_outline),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('None')),
+                    ..._categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))),
+                  ],
+                  onChanged: (value) => setState(() => _selectedCategory = value),
                 ),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('None')),
-                  ..._categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))),
-                ],
-                onChanged: (value) => setState(() => _selectedCategory = value),
-              ),
-              const SizedBox(height: 16),
-              
-              // Reminder Section
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Daily Reminder'),
-                subtitle: Text(_reminderTime != null 
-                    ? 'Notify at ${_reminderTime!.format(context)}' 
-                    : 'No reminder set'),
-                value: _reminderTime != null,
-                onChanged: (bool value) {
-                  if (value) {
-                    _selectTime(context);
-                  } else {
-                    setState(() => _reminderTime = null);
-                  }
-                },
-              ),
-              if (_reminderTime != null)
-                TextButton.icon(
-                  onPressed: () => _selectTime(context),
-                  icon: const Icon(Icons.access_time, size: 18),
-                  label: const Text('Change Reminder Time'),
-                ),
-              
-              const SizedBox(height: 16),
-              
-              // Color Selection Section
-              const Text('Task Color', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 50,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _colorPalette.length,
-                  separatorBuilder: (context, index) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final colorHex = _colorPalette[index];
-                    final color = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
-                    final isSelected = _selectedColor == colorHex;
-
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedColor = colorHex),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? colorScheme.primary : Colors.transparent,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            if (isSelected)
-                              BoxShadow(
-                                color: colorScheme.primary.withValues(alpha: 0.4),
-                                blurRadius: 8,
-                                spreadRadius: 1,
-                              ),
-                          ],
-                        ),
-                        child: isSelected 
-                          ? Icon(
-                              Icons.check, 
-                              color: index == 0 ? Colors.black54 : Colors.white,
-                              size: 20,
-                            ) 
-                          : null,
-                      ),
-                    );
+                const SizedBox(height: 16),
+                
+                // Reminder Section
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Daily Reminder'),
+                  subtitle: Text(_reminderTime != null 
+                      ? 'Notify at ${_reminderTime!.format(context)}' 
+                      : 'No reminder set'),
+                  value: _reminderTime != null,
+                  onChanged: (bool value) {
+                    if (value) {
+                      _selectTime(context);
+                    } else {
+                      setState(() => _reminderTime = null);
+                    }
                   },
                 ),
-              ),
+                if (_reminderTime != null)
+                  TextButton.icon(
+                    onPressed: () => _selectTime(context),
+                    icon: const Icon(Icons.access_time, size: 18),
+                    label: const Text('Change Reminder Time'),
+                  ),
+                
+                const SizedBox(height: 16),
+                
+                // Color Selection Section
+                const Text('Task Color', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 50,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _colorPalette.length,
+                    separatorBuilder: (context, index) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      final colorHex = _colorPalette[index];
+                      final color = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
+                      final isSelected = _selectedColor == colorHex;
+
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedColor = colorHex),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? colorScheme.primary : Colors.transparent,
+                              width: 3,
+                            ),
+                            boxShadow: [
+                              if (isSelected)
+                                BoxShadow(
+                                  color: colorScheme.primary.withValues(alpha: 0.4),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                            ],
+                          ),
+                          child: isSelected 
+                            ? Icon(
+                                Icons.check, 
+                                color: index == 0 ? Colors.black54 : Colors.white,
+                                size: 20,
+                              ) 
+                            : null,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
               
               const SizedBox(height: 24),
               Row(
@@ -422,7 +430,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                       onTap: () => _selectDate(context, true),
                     ),
                   ),
-                  if (!_isTargetGoal)
+                  if (isPro && !_isTargetGoal)
                     Expanded(
                       child: ListTile(
                         title: const Text('End Date'),
@@ -469,55 +477,74 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               ],
               const SizedBox(height: 16),
               if (!_isTargetGoal) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 12.0, right: 12.0),
-                      child: Text('Repeat every', style: TextStyle(fontSize: 16)),
-                    ),
-                    Expanded(
-                      flex: 1,
-                      child: TextFormField(
-                        controller: _recurrenceIntervalController,
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(vertical: 8),
-                        ),
-                        validator: (value) {
-                          if (_isTargetGoal) return null;
-                          final n = int.tryParse(value ?? '');
-                          if (n == null || n <= 0) return 'Invalid';
-                          return null;
-                        },
+                if (isPro) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12.0, right: 12.0),
+                        child: Text('Repeat every', style: TextStyle(fontSize: 16)),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: DropdownButtonFormField<RecurrenceType>(
-                        initialValue: _recurrenceType,
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      Expanded(
+                        flex: 1,
+                        child: TextFormField(
+                          controller: _recurrenceIntervalController,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          decoration: const InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(vertical: 8),
+                          ),
+                          validator: (value) {
+                            if (_isTargetGoal) return null;
+                            final n = int.tryParse(value ?? '');
+                            if (n == null || n <= 0) return 'Invalid';
+                            return null;
+                          },
                         ),
-                        items: RecurrenceType.values.map((type) {
-                          final label = type == RecurrenceType.daily ? 'Days' : 
-                                      type == RecurrenceType.weekly ? 'Weeks' : 'Months';
-                          return DropdownMenuItem(
-                            value: type,
-                            child: Text(label),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _recurrenceType = value!;
-                          });
-                        },
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: DropdownButtonFormField<RecurrenceType>(
+                          initialValue: _recurrenceType,
+                          decoration: const InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          items: RecurrenceType.values.map((type) {
+                            final label = type == RecurrenceType.daily ? 'Days' : 
+                                        type == RecurrenceType.weekly ? 'Weeks' : 'Months';
+                            return DropdownMenuItem(
+                              value: type,
+                              child: Text(label),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _recurrenceType = value!;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else
+                  DropdownButtonFormField<RecurrenceType>(
+                    initialValue: _recurrenceType,
+                    decoration: const InputDecoration(labelText: 'Repeat'),
+                    items: RecurrenceType.values.map((type) {
+                      final label = type == RecurrenceType.daily ? 'Daily' : 
+                                  type == RecurrenceType.weekly ? 'Weekly' : 'Monthly';
+                      return DropdownMenuItem(
+                        value: type,
+                        child: Text(label),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _recurrenceType = value!;
+                      });
+                    },
+                  ),
               ] else ...[
                 DropdownButtonFormField<RecurrenceType>(
                   initialValue: _recurrenceType,
@@ -558,71 +585,95 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                   }).toList(),
                 ),
               ],
+              if (isPro && _recurrenceType == RecurrenceType.monthly) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String?>(
+                  value: _recurrenceRule,
+                  decoration: const InputDecoration(labelText: 'Monthly Rule', prefixIcon: Icon(Icons.auto_awesome)),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('Same day each month')),
+                    const DropdownMenuItem(value: '{"type": "last_day"}', child: Text('Last day of month')),
+                    DropdownMenuItem(
+                      value: '{"type": "last_weekday", "weekday": ${_startDate?.weekday ?? 1}}',
+                      child: Text('Last ${DateFormat.EEEE().format(_startDate ?? DateTime.now())}'),
+                    ),
+                    DropdownMenuItem(
+                      value: '{"type": "ordinal_weekday", "ordinal": ${(((_startDate?.day ?? 1) - 1) ~/ 7) + 1}, "weekday": ${_startDate?.weekday ?? 1}}',
+                      child: Text('${_getOrdinalText((((_startDate?.day ?? 1) - 1) ~/ 7) + 1)} ${DateFormat.EEEE().format(_startDate ?? DateTime.now())}'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _recurrenceRule = v),
+                ),
+              ],
               const SizedBox(height: 24),
               const Divider(),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Checklist (Sub-Tasks)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  TextButton.icon(
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add Item'),
-                    onPressed: () {
-                      final title = _subtaskController.text.trim();
-                      if (title.isNotEmpty) {
-                        setState(() {
-                          _subTasks.add(SubTask(taskId: widget.taskToEdit?.id ?? 0, title: title));
-                          _subtaskController.clear();
-                        });
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _subtaskController,
-                decoration: const InputDecoration(
-                  hintText: 'Add a sub-task...',
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-                onSubmitted: (value) {
-                  final title = value.trim();
-                  if (title.isNotEmpty) {
-                    setState(() {
-                      _subTasks.add(SubTask(taskId: widget.taskToEdit?.id ?? 0, title: title));
-                      _subtaskController.clear();
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: 12),
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _subTasks.length,
-                itemBuilder: (context, index) {
-                  final sub = _subTasks[index];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    leading: const Icon(Icons.subdirectory_arrow_right, size: 16),
-                    title: Text(sub.title),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close, size: 16),
-                      onPressed: () async {
-                        if (sub.id != null) {
-                           await DatabaseService.instance.deleteSubTask(sub.id!);
+              if (isPro) ...[
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Checklist (Sub-Tasks)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    TextButton.icon(
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add Item'),
+                      onPressed: () {
+                        final title = _subtaskController.text.trim();
+                        if (title.isNotEmpty) {
+                          setState(() {
+                            _subTasks.add(SubTask(taskId: widget.taskToEdit?.id ?? 0, title: title));
+                            _subtaskController.clear();
+                          });
                         }
-                        setState(() {
-                          _subTasks.removeAt(index);
-                        });
                       },
                     ),
-                  );
-                },
-              ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _subtaskController,
+                  decoration: const InputDecoration(
+                    hintText: 'Add a sub-task...',
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  onSubmitted: (value) {
+                    final title = value.trim();
+                    if (title.isNotEmpty) {
+                      setState(() {
+                        _subTasks.add(SubTask(taskId: widget.taskToEdit?.id ?? 0, title: title));
+                        _subtaskController.clear();
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _subTasks.length,
+                  itemBuilder: (context, index) {
+                    final sub = _subTasks[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: const Icon(Icons.subdirectory_arrow_right, size: 16),
+                      title: Text(sub.title),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close, size: 16),
+                        onPressed: () async {
+                          if (sub.id != null) {
+                             await DatabaseService.instance.deleteSubTask(sub.id!);
+                          }
+                          setState(() {
+                            _subTasks.removeAt(index);
+                          });
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ],
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: (_startDate != null && (_isTargetGoal || _endDate != null)) ? _saveTask : null,
@@ -636,5 +687,14 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         ),
       ),
     );
+  }
+  String _getOrdinalText(int n) {
+    if (n >= 11 && n <= 13) return '${n}th';
+    switch (n % 10) {
+      case 1: return '${n}st';
+      case 2: return '${n}nd';
+      case 3: return '${n}rd';
+      default: return '${n}th';
+    }
   }
 }
