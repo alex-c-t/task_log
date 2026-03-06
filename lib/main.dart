@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'providers/theme_provider.dart';
+import 'providers/preferences_provider.dart';
 import 'screens/main_screen.dart';
 import 'services/notification_service.dart';
 
@@ -10,8 +11,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.instance.init();
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => PreferencesProvider()),
+      ],
       child: const TaskLogApp(),
     ),
   );
@@ -32,12 +36,12 @@ class TaskLogApp extends StatelessWidget {
       themeMode: themeProvider.themeMode,
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
+        colorSchemeSeed: themeProvider.seedColor,
         brightness: Brightness.light,
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
+        colorSchemeSeed: themeProvider.seedColor,
         brightness: Brightness.dark,
       ),
       // MainScreen handles the Hybrid Navigation (Tabs + Drawer)

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../providers/preferences_provider.dart';
 import 'calendar_screen.dart';
 import 'day_detail_screen.dart';
 import 'task_list_screen.dart';
@@ -81,6 +83,9 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final prefs = Provider.of<PreferencesProvider>(context);
+    final isPro = prefs.isProMode;
+
     final List<Widget> pages = [
       CalendarScreen(key: _calendarKey, onDateSelected: _onDaySelected),
       DayDetailScreen(
@@ -149,41 +154,57 @@ class _MainScreenState extends State<MainScreen> {
           ],
         ),
         drawer: Drawer(
-          child: ListView(
-            padding: EdgeInsets.zero,
+          child: Column(
             children: [
-              DrawerHeader(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
                   children: [
-                    const Icon(Icons.task_alt, size: 48),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Tasklet',
-                      style: Theme.of(context).textTheme.headlineMedium,
+                    DrawerHeader(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          const Icon(Icons.task_alt, size: 48),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Tasklet',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.settings),
+                      title: const Text('Settings'),
+                      onTap: () => _navigateToDrawerItem(const SettingsScreen()),
+                    ),
+                    if (isPro)
+                      ListTile(
+                        leading: const Icon(Icons.analytics_outlined),
+                        title: const Text('Insights'),
+                        onTap: () => _navigateToDrawerItem(const InsightsScreen()),
+                      ),
+                    ListTile(
+                      leading: const Icon(Icons.info),
+                      title: const Text('About'),
+                      onTap: () => _navigateToDrawerItem(const AboutScreen()),
                     ),
                   ],
                 ),
               ),
-              ListTile(
-                leading: const Icon(Icons.settings),
-                title: const Text('Settings'),
-                onTap: () => _navigateToDrawerItem(const SettingsScreen()),
+              const Divider(),
+              SwitchListTile(
+                title: const Text('Pro Mode'),
+                subtitle: const Text('Unlock advanced features'),
+                value: isPro,
+                onChanged: (val) => prefs.toggleProMode(val),
+                secondary: Icon(isPro ? Icons.auto_awesome : Icons.star_border),
               ),
-              ListTile(
-                leading: const Icon(Icons.analytics_outlined),
-                title: const Text('Insights'),
-                onTap: () => _navigateToDrawerItem(const InsightsScreen()),
-              ),
-              ListTile(
-                leading: const Icon(Icons.info),
-                title: const Text('About'),
-                onTap: () => _navigateToDrawerItem(const AboutScreen()),
-              ),
+              const SizedBox(height: 8),
             ],
           ),
         ),
