@@ -37,8 +37,10 @@ class AddTaskScreen extends StatefulWidget {
 class _AddTaskScreenState extends State<AddTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  final _targetCompletionsController = TextEditingController();
   DateTime? _startDate;
   DateTime? _endDate;
+  bool _isTargetGoal = false;
   late RecurrenceType _recurrenceType;
   late List<int> _selectedWeeklyDays;
   late String _selectedColor;
@@ -70,10 +72,15 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     // Initialize fields from taskToEdit or defaults for new task
     _titleController.text = editTask?.title ?? '';
     
+    _isTargetGoal = editTask?.targetCompletions != null;
+    if (_isTargetGoal) {
+      _targetCompletionsController.text = editTask!.targetCompletions.toString();
+    }
+    
     // UX logic: Use task's date, or initial context date, or current time
     _startDate = editTask?.startDate ?? widget.initialStartDate ?? DateTime.now();
     
-    _endDate = editTask?.endDate ?? _startDate!.add(const Duration(days: 30));
+    _endDate = editTask?.endDate ?? (_isTargetGoal ? null : _startDate!.add(const Duration(days: 30)));
     _recurrenceType = editTask?.recurrenceType ?? RecurrenceType.daily;
     _selectedWeeklyDays = List.of(editTask?.weeklyDays ?? []);
     _selectedColor = editTask?.colorHex ?? _colorPalette.first;
@@ -87,6 +94,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _targetCompletionsController.dispose();
     super.dispose();
   }
 
@@ -138,8 +146,20 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   /// Persists the task to the database (INSERT or UPDATE).
   void _saveTask() async {
     if (_formKey.currentState!.validate()) {
-      // Form validation ensures these are not null via button state, but explicit check adds safety.
-      if (_startDate == null || _endDate == null) return;
+      if (_startDate == null) return;
+      
+      int? targetCompletions;
+      if (_isTargetGoal) {
+        targetCompletions = int.tryParse(_targetCompletionsController.text);
+        if (targetCompletions == null || targetCompletions <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enter a valid target completions number')),
+          );
+          return;
+        }
+      } else {
+        if (_endDate == null) return;
+      }
 
       if (_recurrenceType == RecurrenceType.weekly && _selectedWeeklyDays.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -157,11 +177,13 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         id: widget.taskToEdit?.id,
         title: _titleController.text,
         startDate: _startDate!,
-        endDate: _endDate!,
+        endDate: _isTargetGoal ? null : _endDate,
         recurrenceType: _recurrenceType,
         weeklyDays: _recurrenceType == RecurrenceType.weekly ? _selectedWeeklyDays : null,
         colorHex: _selectedColor,
         reminderTime: reminderStr,
+        targetCompletions: targetCompletions,
+        isFinished: widget.taskToEdit?.isFinished ?? 0,
       );
 
       int taskId;
@@ -183,6 +205,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         weeklyDays: task.weeklyDays,
         colorHex: task.colorHex,
         reminderTime: task.reminderTime,
+        targetCompletions: task.targetCompletions,
+        isFinished: task.isFinished,
       );
 
       final ns = NotificationService.instance;
@@ -344,15 +368,51 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                       onTap: () => _selectDate(context, true),
                     ),
                   ),
-                  Expanded(
-                    child: ListTile(
-                      title: const Text('End Date'),
-                      subtitle: Text(_endDate != null ? DateFormat.yMMMd().format(_endDate!) : 'Select Date'),
-                      onTap: () => _selectDate(context, false),
+                  if (!_isTargetGoal)
+                    Expanded(
+                      child: ListTile(
+                        title: const Text('End Date'),
+                        subtitle: Text(_endDate != null ? DateFormat.yMMMd().format(_endDate!) : 'Select Date'),
+                        onTap: () => _selectDate(context, false),
+                      ),
                     ),
-                  ),
                 ],
               ),
+              const SizedBox(height: 16),
+              
+              // Goal Toggle Section
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Set Completion Goal'),
+                subtitle: const Text('Track days instead of a firm deadline'),
+                value: _isTargetGoal,
+                onChanged: (bool value) {
+                  setState(() {
+                    _isTargetGoal = value;
+                    if (!value && _endDate == null && _startDate != null) {
+                      _endDate = _startDate!.add(const Duration(days: 30));
+                    }
+                  });
+                },
+              ),
+              if (_isTargetGoal) ...[
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _targetCompletionsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Target Completions',
+                    hintText: 'e.g. 15',
+                    prefixIcon: Icon(Icons.flag),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (!_isTargetGoal) return null;
+                    if (value == null || value.isEmpty) return 'Specify target';
+                    if (int.tryParse(value) == null || int.parse(value) <= 0) return 'Must be positive number';
+                    return null;
+                  },
+                ),
+              ],
               const SizedBox(height: 16),
               DropdownButtonFormField<RecurrenceType>(
                 initialValue: _recurrenceType,
@@ -394,7 +454,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               ],
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: (_startDate != null && _endDate != null) ? _saveTask : null,
+                onPressed: (_startDate != null && (_isTargetGoal || _endDate != null)) ? _saveTask : null,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(50),
                 ),

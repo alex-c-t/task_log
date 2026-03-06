@@ -39,9 +39,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     final today = DateTime(now.year, now.month, now.day);
 
     // Get all completions for this task
+    final safeEndDate = task.endDate ?? DateTime(today.year + 10);
     final completions = await DatabaseService.instance.getCompletionsForRange(
       task.startDate,
-      task.endDate,
+      safeEndDate,
     );
     final completionMap = {
       for (var c in completions.where((c) => c.taskId == task.id))
@@ -56,27 +57,42 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     DateTime? lastOccurrence;
 
     final current = DateTime(task.startDate.year, task.startDate.month, task.startDate.day);
-    final end = DateTime(task.endDate.year, task.endDate.month, task.endDate.day);
-
-    DateTime date = current;
-    while (!date.isAfter(end)) {
-      if (RecurrenceHelper.isTaskActiveOnDate(task, date)) {
-        totalOccurrences++;
-
-        firstOccurrence ??= date;
-        lastOccurrence = date;
-
-        final dateStr = date.toIso8601String().substring(0, 10);
-        final isCompleted = completionMap[dateStr] ?? false;
-
-        if (isCompleted) {
-          completedCount++;
-        } else if (date.isAfter(today)) {
-          // Only count future incomplete tasks as pending
-          pendingFutureCount++;
-        }
+    
+    if (task.targetCompletions != null) {
+      // Logic for Target Goal
+      totalOccurrences = task.targetCompletions!;
+      completedCount = completionMap.values.where((v) => v).length;
+      pendingFutureCount = task.isFinished == 1 ? 0 : totalOccurrences - completedCount;
+      
+      final sortedDates = completionMap.keys.toList()..sort();
+      if (sortedDates.isNotEmpty) {
+        firstOccurrence = DateTime.parse(sortedDates.first);
+        lastOccurrence = DateTime.parse(sortedDates.last);
       }
-      date = date.add(const Duration(days: 1));
+    } else {
+      // Logic for Regular Scheduled Task
+      final end = DateTime(task.endDate!.year, task.endDate!.month, task.endDate!.day);
+          
+      DateTime date = current;
+      while (!date.isAfter(end)) {
+        if (RecurrenceHelper.isTaskActiveOnDate(task, date)) {
+          totalOccurrences++;
+  
+          firstOccurrence ??= date;
+          lastOccurrence = date;
+  
+          final dateStr = date.toIso8601String().substring(0, 10);
+          final isCompleted = completionMap[dateStr] ?? false;
+  
+          if (isCompleted) {
+            completedCount++;
+          } else if (date.isAfter(today)) {
+            // Only count future incomplete tasks as pending
+            pendingFutureCount++;
+          }
+        }
+        date = date.add(const Duration(days: 1));
+      }
     }
 
     final completionPercentage = totalOccurrences > 0
@@ -85,14 +101,25 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
     // Determine status
     TaskStatus status;
-    if (today.isAfter(end)) {
-      status = TaskStatus.expired;
-    } else if (completedCount == totalOccurrences && totalOccurrences > 0) {
-      status = TaskStatus.completed;
+    if (task.targetCompletions != null) {
+      // Status for target goal
+      if (task.isFinished == 1) {
+        status = TaskStatus.completed;
+      } else {
+        status = TaskStatus.active;
+      }
     } else {
-      status = TaskStatus.active;
+      // Status for scheduled task
+      final safeEndDate = task.endDate!;
+      final end = DateTime(safeEndDate.year, safeEndDate.month, safeEndDate.day);
+      if (today.isAfter(end)) {
+        status = TaskStatus.expired;
+      } else if (completedCount == totalOccurrences && totalOccurrences > 0) {
+        status = TaskStatus.completed;
+      } else {
+        status = TaskStatus.active;
+      }
     }
-
     return TaskStats(
       totalOccurrences: totalOccurrences,
       completedCount: completedCount,
@@ -228,11 +255,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       label: 'Start Date',
                       value: DateFormat.yMMMd().format(task.startDate),
                     ),
-                    const Divider(),
-                    _InfoRow(
-                      label: 'End Date',
-                      value: DateFormat.yMMMd().format(task.endDate),
-                    ),
+                    if (task.endDate != null) ...[
+                      const Divider(),
+                      _InfoRow(
+                        label: 'End Date',
+                        value: DateFormat.yMMMd().format(task.endDate!),
+                      ),
+                    ],
                     const Divider(),
                     _InfoRow(
                       label: 'Recurrence',

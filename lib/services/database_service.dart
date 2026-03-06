@@ -32,7 +32,7 @@ class DatabaseService extends ChangeNotifier {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -53,7 +53,9 @@ class DatabaseService extends ChangeNotifier {
         createdAt TEXT NOT NULL,
         updatedAt TEXT NOT NULL,
         isDeleted INTEGER NOT NULL DEFAULT 0,
-        reminderTime TEXT
+        reminderTime TEXT,
+        targetCompletions INTEGER,
+        isFinished INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -157,6 +159,11 @@ class DatabaseService extends ChangeNotifier {
     if (oldVersion < 3) {
       await db.execute('ALTER TABLE tasks ADD COLUMN reminderTime TEXT');
     }
+
+    if (oldVersion < 4) {
+      await db.execute('ALTER TABLE tasks ADD COLUMN targetCompletions INTEGER');
+      await db.execute('ALTER TABLE tasks ADD COLUMN isFinished INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   // INTENT-BASED APIs (FIX 2)
@@ -244,21 +251,35 @@ class DatabaseService extends ChangeNotifier {
 
       // 2. Soft-delete dependencies outside the new range
       final startStr = task.startDate.toIso8601String().substring(0, 10);
-      final endStr = task.endDate.toIso8601String().substring(0, 10);
-      // Soft delete completions
-      await txn.update(
-        'completions',
-        {'isDeleted': 1, 'updatedAt': now},
-        where: 'taskId = ? AND (date < ? OR date > ?)',
-        whereArgs: [task.id, startStr, endStr],
-      );
-      // Soft delete comments
-      await txn.update(
-        'comments',
-        {'isDeleted': 1, 'updatedAt': now},
-        where: 'taskId = ? AND (date < ? OR date > ?)',
-        whereArgs: [task.id, startStr, endStr],
-      );
+      
+      if (task.endDate != null) {
+        final endStr = task.endDate!.toIso8601String().substring(0, 10);
+        await txn.update(
+          'completions',
+          {'isDeleted': 1, 'updatedAt': now},
+          where: 'taskId = ? AND (date < ? OR date > ?)',
+          whereArgs: [task.id, startStr, endStr],
+        );
+        await txn.update(
+          'comments',
+          {'isDeleted': 1, 'updatedAt': now},
+          where: 'taskId = ? AND (date < ? OR date > ?)',
+          whereArgs: [task.id, startStr, endStr],
+        );
+      } else {
+        await txn.update(
+          'completions',
+          {'isDeleted': 1, 'updatedAt': now},
+          where: 'taskId = ? AND date < ?',
+          whereArgs: [task.id, startStr],
+        );
+        await txn.update(
+          'comments',
+          {'isDeleted': 1, 'updatedAt': now},
+          where: 'taskId = ? AND date < ?',
+          whereArgs: [task.id, startStr],
+        );
+      }
     });
   }
 
@@ -353,6 +374,31 @@ class DatabaseService extends ChangeNotifier {
           'updatedAt': now,
           'isDeleted': 0
         });
+      }
+
+      // Check if this task is a goal with target completions
+      final taskResult = await txn.query('tasks', where: 'id = ?', whereArgs: [taskId]);
+      if (taskResult.isNotEmpty) {
+        final taskData = taskResult.first;
+        if (taskData['targetCompletions'] != null) {
+          final target = taskData['targetCompletions'] as int;
+          
+          final completionsCountResult = await txn.rawQuery(
+            'SELECT COUNT(*) as count FROM completions WHERE taskId = ? AND isCompleted = 1 AND isDeleted = 0',
+            [taskId]
+          );
+          final count = Sqflite.firstIntValue(completionsCountResult) ?? 0;
+          
+          await txn.update(
+            'tasks',
+            {
+              'isFinished': count >= target ? 1 : 0,
+              'updatedAt': now,
+            },
+            where: 'id = ?',
+            whereArgs: [taskId],
+          );
+        }
       }
     });
 

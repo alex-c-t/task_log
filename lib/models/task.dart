@@ -8,7 +8,9 @@ class Task with SyncEntity {
   final int? id;
   final String title;
   final DateTime startDate;
-  final DateTime endDate;
+  final DateTime? endDate;
+  final int? targetCompletions;
+  final int isFinished;
   final RecurrenceType recurrenceType;
   /// 1 = Mon, 7 = Sun. Only used if [recurrenceType] is [RecurrenceType.weekly].
   final List<int>? weeklyDays;
@@ -30,11 +32,13 @@ class Task with SyncEntity {
     this.id,
     required this.title,
     required this.startDate,
-    required this.endDate,
+    this.endDate,
     required this.recurrenceType,
     this.weeklyDays,
     required this.colorHex,
     this.reminderTime,
+    this.targetCompletions,
+    this.isFinished = 0,
     String? uuid,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -51,11 +55,13 @@ class Task with SyncEntity {
       'id': id,
       'title': title,
       'startDate': startDate.toIso8601String().substring(0, 10), // YYYY-MM-DD
-      'endDate': endDate.toIso8601String().substring(0, 10), // YYYY-MM-DD
+      'endDate': endDate != null ? endDate!.toIso8601String().substring(0, 10) : '', // YYYY-MM-DD or empty for goals
       'recurrenceType': recurrenceType.toString().split('.').last,
       'weeklyDays': weeklyDays?.join(','), // Store as "1,3,5"
       'colorHex': colorHex,
       'reminderTime': reminderTime,
+      'targetCompletions': targetCompletions,
+      'isFinished': isFinished,
       ...toMapSync(),
     };
   }
@@ -66,7 +72,7 @@ class Task with SyncEntity {
       id: map['id'],
       title: map['title'],
       startDate: DateTime.parse(map['startDate']),
-      endDate: DateTime.parse(map['endDate']),
+      endDate: map['endDate'] != null && map['endDate'].toString().isNotEmpty ? DateTime.parse(map['endDate']) : null,
       recurrenceType: RecurrenceType.values.firstWhere(
         (e) => e.toString().split('.').last == map['recurrenceType'],
       ),
@@ -75,6 +81,8 @@ class Task with SyncEntity {
           : null,
       colorHex: map['colorHex'] ?? "#E0E0E0", // Fallback for safety during schema migration
       reminderTime: map['reminderTime'],
+      targetCompletions: map['targetCompletions'],
+      isFinished: map['isFinished'] ?? 0,
       uuid: map['uuid'],
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
       updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt']) : null,

@@ -282,14 +282,19 @@ class _MonthGridState extends State<_MonthGrid> with AutomaticKeepAliveClientMix
     final lastDay = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
 
     final potentialTasks = widget.allTasks.where((task) {
-      return task.startDate.isBefore(lastDay) && task.endDate.isAfter(firstDay);
+      final endsAfterStart = task.endDate == null || task.endDate!.isAfter(firstDay);
+      return task.startDate.isBefore(lastDay) && endsAfterStart;
     }).toList();
 
+    final completionMap = widget.completionNotifier.value;
     final Map<DateTime, List<Task>> newMap = {};
     for (int day = 1; day <= lastDay.day; day++) {
       final date = DateTime(month.year, month.month, day);
+      final dateStr = date.toIso8601String().substring(0, 10);
+      
       final activeTasks = potentialTasks.where((task) {
-        return RecurrenceHelper.isTaskActiveOnDate(task, date);
+        final isCompleted = completionMap["${task.id}-$dateStr"] ?? false;
+        return RecurrenceHelper.isTaskActiveOnDate(task, date, isCompletedOnDate: isCompleted);
       }).toList();
 
       if (activeTasks.isNotEmpty) {
