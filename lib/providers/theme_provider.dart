@@ -8,25 +8,34 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// but defaults to Light for the first toggle.
 class ThemeProvider with ChangeNotifier {
   static const String _themeKey = 'theme_mode';
+  static const String _colorKey = 'seed_color';
+  
   ThemeMode _themeMode = ThemeMode.system;
+  Color _seedColor = Colors.blue;
 
   ThemeMode get themeMode => _themeMode;
+  Color get seedColor => _seedColor;
 
   ThemeProvider() {
-    _loadTheme();
+    _loadFromPrefs();
   }
 
-  /// Toggles between Light and Dark mode.
-  ///
-  /// [isDark] - true for Dark Mode, false for Light Mode.
   void toggleTheme(bool isDark) async {
     _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     notifyListeners();
-    _saveTheme(_themeMode);
+    _saveToPrefs();
   }
 
-  Future<void> _loadTheme() async {
+  void updateSeedColor(Color color) {
+    _seedColor = color;
+    notifyListeners();
+    _saveToPrefs();
+  }
+
+  Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    
+    // Load theme
     final savedTheme = prefs.getString(_themeKey);
     if (savedTheme == 'dark') {
       _themeMode = ThemeMode.dark;
@@ -35,22 +44,29 @@ class ThemeProvider with ChangeNotifier {
     } else {
       _themeMode = ThemeMode.system;
     }
+
+    // Load color
+    final savedColor = prefs.getInt(_colorKey);
+    if (savedColor != null) {
+      _seedColor = Color(savedColor);
+    }
+    
     notifyListeners();
   }
 
-  Future<void> _saveTheme(ThemeMode mode) async {
+  Future<void> _saveToPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    String value;
-    switch (mode) {
-      case ThemeMode.dark:
-        value = 'dark';
-        break;
-      case ThemeMode.light:
-        value = 'light';
-        break;
-      default:
-        value = 'system';
+    
+    // Save theme
+    String themeValue;
+    switch (_themeMode) {
+      case ThemeMode.dark: themeValue = 'dark'; break;
+      case ThemeMode.light: themeValue = 'light'; break;
+      default: themeValue = 'system';
     }
-    await prefs.setString(_themeKey, value);
+    await prefs.setString(_themeKey, themeValue);
+
+    // Save color
+    await prefs.setInt(_colorKey, _seedColor.value);
   }
 }
