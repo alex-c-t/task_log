@@ -13,6 +13,17 @@ class GoalsListScreen extends StatefulWidget {
 
 class GoalsListScreenState extends State<GoalsListScreen> {
   String _filter = 'Active'; // Active, Completed, All
+  String? _categoryFilter;
+
+  static const List<String> _categories = [
+    'Personal',
+    'Work',
+    'Health',
+    'Home',
+    'Finance',
+    'Social',
+    'Hobby',
+  ];
 
   void resetToToday() {
     setState(() {});
@@ -29,6 +40,10 @@ class GoalsListScreenState extends State<GoalsListScreen> {
       if (_filter == 'All') return true;
       if (_filter == 'Active') return !isFinished;
       if (_filter == 'Completed') return isFinished;
+
+      if (_categoryFilter != null && task.category != _categoryFilter) {
+        return false;
+      }
 
       return true;
     }).toList();
@@ -59,7 +74,8 @@ class GoalsListScreenState extends State<GoalsListScreen> {
     return Column(
       children: [
         // Filter Chips
-        Padding(
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
             children: [
@@ -68,6 +84,26 @@ class GoalsListScreenState extends State<GoalsListScreen> {
               _buildFilterChip('Completed'),
               const SizedBox(width: 8),
               _buildFilterChip('All'),
+              const SizedBox(width: 16),
+              const VerticalDivider(width: 1),
+              const SizedBox(width: 16),
+              ChoiceChip(
+                label: const Text('All Categories'),
+                selected: _categoryFilter == null,
+                onSelected: (selected) {
+                  if (selected) setState(() => _categoryFilter = null);
+                },
+              ),
+              ..._categories.map((cat) => Padding(
+                padding: const EdgeInsets.only(left: 8.0),
+                child: ChoiceChip(
+                  label: Text(cat),
+                  selected: _categoryFilter == cat,
+                  onSelected: (selected) {
+                    setState(() => _categoryFilter = selected ? cat : null);
+                  },
+                ),
+              )),
             ],
           ),
         ),
@@ -115,6 +151,7 @@ class _GoalCard extends StatefulWidget {
 
 class _GoalCardState extends State<_GoalCard> {
   int _completedCount = 0;
+  int _streak = 0;
 
   @override
   void initState() {
@@ -136,9 +173,11 @@ class _GoalCardState extends State<_GoalCard> {
       DateTime(2099),
     );
     final count = completions.where((c) => c.taskId == widget.goal.id && c.isCompleted).length;
+    final streak = await DatabaseService.instance.getTaskStreak(widget.goal);
     if (mounted) {
       setState(() {
         _completedCount = count;
+        _streak = streak;
       });
     }
   }
@@ -183,7 +222,23 @@ class _GoalCardState extends State<_GoalCard> {
                   ),
                   if (isFinished)
                     const Icon(Icons.check_circle, color: Colors.green)
-                  else
+                  else if (_streak > 0) ...[
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('🔥', style: TextStyle(fontSize: 16)),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$_streak',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else
                     const Icon(Icons.flag_outlined, color: Colors.grey, size: 20),
                 ],
               ),

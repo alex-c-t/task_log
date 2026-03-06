@@ -48,6 +48,24 @@ class RecurrenceHelper {
     }
 
     // 2. Check recurrence type
+    return _checkRecurrence(task, normalizedDate);
+  }
+
+  /// Determines if a task is scheduled on a date, ignoring completion/goal state.
+  static bool isTaskScheduledOnDate(Task task, DateTime date) {
+    final d = DateTime(date.year, date.month, date.day);
+    final start = DateTime(task.startDate.year, task.startDate.month, task.startDate.day);
+    if (d.isBefore(start)) return false;
+
+    if (task.targetCompletions == null && task.endDate != null) {
+      final end = DateTime(task.endDate!.year, task.endDate!.month, task.endDate!.day);
+      if (d.isAfter(end)) return false;
+    }
+
+    return _checkRecurrence(task, d);
+  }
+
+  static bool _checkRecurrence(Task task, DateTime date) {
     switch (task.recurrenceType) {
       case RecurrenceType.daily:
         return true;
@@ -56,17 +74,10 @@ class RecurrenceHelper {
         if (task.weeklyDays == null || task.weeklyDays!.isEmpty) {
           return false;
         }
-        // DateTime.weekday returns 1 for Monday, 7 for Sunday.
-        // task.weeklyDays stores these values directly.
-        return task.weeklyDays!.contains(normalizedDate.weekday);
+        return task.weeklyDays!.contains(date.weekday);
 
       case RecurrenceType.monthly:
-        // Strict monthly rule: Day of month must match exactly.
-        // Example: Started Jan 31.
-        // - Feb 28/29: Returns false (skip).
-        // - Mar 31: Returns true.
-        // - Apr 30: Returns false (skip).
-        return normalizedDate.day == normalizedStart.day;
+        return date.day == task.startDate.day;
     }
   }
 }

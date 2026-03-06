@@ -20,6 +20,9 @@ class Task with SyncEntity {
   
   /// The time to show a daily reminder for this task (e.g., "09:00").
   final String? reminderTime;
+
+  /// Optional category/tag for the task (e.g., "Work", "Health").
+  final String? category;
   
   @override
   String uuid;
@@ -38,6 +41,7 @@ class Task with SyncEntity {
     required this.colorHex,
     this.reminderTime,
     this.targetCompletions,
+    this.category,
     this.isFinished = 0,
     String? uuid,
     DateTime? createdAt,
@@ -61,6 +65,7 @@ class Task with SyncEntity {
       'colorHex': colorHex,
       'reminderTime': reminderTime,
       'targetCompletions': targetCompletions,
+      'category': category,
       'isFinished': isFinished,
       ...toMapSync(),
     };
@@ -82,6 +87,7 @@ class Task with SyncEntity {
       colorHex: map['colorHex'] ?? "#E0E0E0", // Fallback for safety during schema migration
       reminderTime: map['reminderTime'],
       targetCompletions: map['targetCompletions'],
+      category: map['category'],
       isFinished: map['isFinished'] ?? 0,
       uuid: map['uuid'],
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,

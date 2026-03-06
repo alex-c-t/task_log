@@ -4,8 +4,10 @@ import 'package:path/path.dart';
 import '../models/task.dart';
 import '../models/task_completion.dart';
 import '../models/task_comment.dart';
+import '../models/subtask.dart';
 import 'notification_service.dart';
-
+import '../utils/recurrence_helper.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 class DatabaseService extends ChangeNotifier {
@@ -32,7 +34,7 @@ class DatabaseService extends ChangeNotifier {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -55,7 +57,8 @@ class DatabaseService extends ChangeNotifier {
         isDeleted INTEGER NOT NULL DEFAULT 0,
         reminderTime TEXT,
         targetCompletions INTEGER,
-        isFinished INTEGER NOT NULL DEFAULT 0
+        isFinished INTEGER NOT NULL DEFAULT 0,
+        category TEXT
       )
     ''');
 
@@ -86,6 +89,28 @@ class DatabaseService extends ChangeNotifier {
         updatedAt TEXT NOT NULL,
         isDeleted INTEGER NOT NULL DEFAULT 0,
         UNIQUE(taskId, date)
+      )
+    ''');
+
+    // SUBTASKS (DEFINITIONS)
+    await db.execute('''
+      CREATE TABLE task_subtasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        taskId INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        isDeleted INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    // SUBTASK COMPLETIONS (HISTORY)
+    await db.execute('''
+      CREATE TABLE subtask_completions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subtaskId INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        isCompleted INTEGER NOT NULL DEFAULT 0,
+        isDeleted INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(subtaskId, date)
       )
     ''');
   }
@@ -163,6 +188,31 @@ class DatabaseService extends ChangeNotifier {
     if (oldVersion < 4) {
       await db.execute('ALTER TABLE tasks ADD COLUMN targetCompletions INTEGER');
       await db.execute('ALTER TABLE tasks ADD COLUMN isFinished INTEGER NOT NULL DEFAULT 0');
+    }
+
+    if (oldVersion < 5) {
+      await db.execute('''
+        CREATE TABLE task_subtasks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          taskId INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          isDeleted INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE subtask_completions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          subtaskId INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          isCompleted INTEGER NOT NULL DEFAULT 0,
+          isDeleted INTEGER NOT NULL DEFAULT 0,
+          UNIQUE(subtaskId, date)
+        )
+      ''');
+    }
+
+    if (oldVersion < 6) {
+      await db.execute('ALTER TABLE tasks ADD COLUMN category TEXT');
     }
   }
 
@@ -336,10 +386,11 @@ class DatabaseService extends ChangeNotifier {
   /// BUT we want to TOGGLE. So we need to read current state first?
   /// Or utilize the `isCompleted` passed?
   /// The requirement says "Toggle isCompleted if a row exists".
-  Future<void> toggleTaskCompletion(int taskId, DateTime date, {bool skipNotificationUpdate = false, bool? forceStatus}) async {
+  Future<bool> toggleTaskCompletion(int taskId, DateTime date, {bool skipNotificationUpdate = false, bool? forceStatus}) async {
     final db = await instance.database;
     final dateStr = date.toIso8601String().substring(0, 10);
     final now = DateTime.now().toUtc().toIso8601String();
+    bool goalGained = false;
 
     await db.transaction((txn) async {
       // Check if exists
@@ -389,10 +440,17 @@ class DatabaseService extends ChangeNotifier {
           );
           final count = Sqflite.firstIntValue(completionsCountResult) ?? 0;
           
+          final bool wasFinished = taskData['isFinished'] == 1;
+          final bool isNowFinished = count >= target;
+
+          if (!wasFinished && isNowFinished) {
+            goalGained = true;
+          }
+
           await txn.update(
             'tasks',
             {
-              'isFinished': count >= target ? 1 : 0,
+              'isFinished': isNowFinished ? 1 : 0,
               'updatedAt': now,
             },
             where: 'id = ?',
@@ -409,7 +467,55 @@ class DatabaseService extends ChangeNotifier {
         await NotificationService.instance.updateTaskReminderState(task);
       }
     }
+    
     notifyListeners();
+    return goalGained;
+  }
+
+  // STREAK API
+  Future<int> getTaskStreak(Task task) async {
+    final db = await instance.database;
+    final completionsRes = await db.query(
+      'completions',
+      where: 'taskId = ? AND isCompleted = 1 AND isDeleted = 0',
+      whereArgs: [task.id],
+      orderBy: 'date DESC',
+    );
+    
+    if (completionsRes.isEmpty) return 0;
+    
+    final completedDates = completionsRes.map((c) => c['date'] as String).toSet();
+    
+    int streak = 0;
+    DateTime checkDate = DateTime.now();
+    checkDate = DateTime(checkDate.year, checkDate.month, checkDate.day);
+    
+    final todayStr = DateFormat('yyyy-MM-dd').format(checkDate);
+    bool isTodayScheduled = RecurrenceHelper.isTaskScheduledOnDate(task, checkDate);
+    bool isTodayCompleted = completedDates.contains(todayStr);
+    
+    if (isTodayScheduled && isTodayCompleted) {
+       streak++;
+    }
+    
+    // Walk back from yesterday
+    checkDate = checkDate.subtract(const Duration(days: 1));
+    final normalizedStart = DateTime(task.startDate.year, task.startDate.month, task.startDate.day);
+
+    while (!checkDate.isBefore(normalizedStart)) {
+      if (RecurrenceHelper.isTaskScheduledOnDate(task, checkDate)) {
+        final dateStr = DateFormat('yyyy-MM-dd').format(checkDate);
+        if (completedDates.contains(dateStr)) {
+          streak++;
+        } else {
+          break; // Streak broken
+        }
+      }
+      checkDate = checkDate.subtract(const Duration(days: 1));
+      if (streak > 3650) break; 
+    }
+    
+    return streak;
   }
 
   // COMMENTS API (Phase 2.5.1)
@@ -494,5 +600,97 @@ class DatabaseService extends ChangeNotifier {
       where: 'taskId = ? AND date = ?',
       whereArgs: [taskId, dateStr],
     );
+    notifyListeners();
+  }
+
+  // SUBTASKS API
+
+  /// Fetches all subtask definitions for a specific task.
+  Future<List<SubTask>> getSubTasksForTask(int taskId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'task_subtasks',
+      where: 'taskId = ? AND isDeleted = 0',
+      whereArgs: [taskId],
+    );
+    return result.map((json) => SubTask.fromMap(json)).toList();
+  }
+
+  /// Fetches all subtask completions for a specific date.
+  /// Map of subtaskId -> SubTaskCompletion object for fast lookups.
+  Future<Map<int, SubTaskCompletion>> getSubTaskCompletionsForDate(DateTime date) async {
+    final db = await instance.database;
+    final dateStr = date.toIso8601String().substring(0, 10);
+    
+    final result = await db.query(
+      'subtask_completions',
+      where: 'date = ? AND isDeleted = 0',
+      whereArgs: [dateStr],
+    );
+
+    final Map<int, SubTaskCompletion> completionMap = {};
+    for (var json in result) {
+      final completion = SubTaskCompletion.fromMap(json);
+      completionMap[completion.subtaskId] = completion;
+    }
+    return completionMap;
+  }
+
+  /// Toggles a subtask's completion status for a given date.
+  Future<void> toggleSubTaskCompletion(int subtaskId, DateTime date, {bool? forceStatus}) async {
+    final db = await instance.database;
+    final dateStr = date.toIso8601String().substring(0, 10);
+
+    await db.transaction((txn) async {
+      final List<Map<String, dynamic>> existing = await txn.query(
+        'subtask_completions',
+        where: 'subtaskId = ? AND date = ?',
+        whereArgs: [subtaskId, dateStr],
+      );
+
+      if (existing.isNotEmpty) {
+        final currentStatus = existing.first['isCompleted'] == 1;
+        final newStatus = forceStatus ?? !currentStatus;
+        await txn.update(
+          'subtask_completions',
+          {'isCompleted': newStatus ? 1 : 0, 'isDeleted': 0},
+          where: 'subtaskId = ? AND date = ?',
+          whereArgs: [subtaskId, dateStr],
+        );
+      } else {
+        await txn.insert('subtask_completions', {
+          'subtaskId': subtaskId,
+          'date': dateStr,
+          'isCompleted': (forceStatus ?? true) ? 1 : 0,
+          'isDeleted': 0,
+        });
+      }
+    });
+
+    notifyListeners();
+  }
+
+  /// Adds a new subtask definition to a task blueprint.
+  Future<int> addSubTask(int taskId, String title) async {
+    final db = await instance.database;
+    final id = await db.insert('task_subtasks', {
+      'taskId': taskId,
+      'title': title,
+      'isDeleted': 0
+    });
+    notifyListeners();
+    return id;
+  }
+
+  /// Soft deletes a subtask definition.
+  Future<void> deleteSubTask(int subtaskId) async {
+    final db = await instance.database;
+    await db.update(
+      'task_subtasks',
+      {'isDeleted': 1},
+      where: 'id = ?',
+      whereArgs: [subtaskId],
+    );
+    notifyListeners();
   }
 }

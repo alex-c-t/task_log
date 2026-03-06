@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/task.dart';
+import '../models/subtask.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/task_log_date_range_picker.dart';
@@ -45,6 +46,19 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   late List<int> _selectedWeeklyDays;
   late String _selectedColor;
   TimeOfDay? _reminderTime;
+  List<SubTask> _subTasks = [];
+  final _subtaskController = TextEditingController();
+  String? _selectedCategory;
+
+  static const List<String> _categories = [
+    'Personal',
+    'Work',
+    'Health',
+    'Home',
+    'Finance',
+    'Social',
+    'Hobby',
+  ];
 
   /// The predefined bright color palette for task categorization.
   /// Black (#000000) is the default and first option.
@@ -84,10 +98,24 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     _recurrenceType = editTask?.recurrenceType ?? RecurrenceType.daily;
     _selectedWeeklyDays = List.of(editTask?.weeklyDays ?? []);
     _selectedColor = editTask?.colorHex ?? _colorPalette.first;
+    _selectedCategory = editTask?.category;
     
     if (editTask?.reminderTime != null) {
       final parts = editTask!.reminderTime!.split(':');
       _reminderTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    }
+
+    _loadSubTasks();
+  }
+
+  Future<void> _loadSubTasks() async {
+    if (widget.taskToEdit?.id != null) {
+      final subs = await DatabaseService.instance.getSubTasksForTask(widget.taskToEdit!.id!);
+      if (mounted) {
+        setState(() {
+          _subTasks = subs;
+        });
+      }
     }
   }
 
@@ -95,6 +123,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   void dispose() {
     _titleController.dispose();
     _targetCompletionsController.dispose();
+    _subtaskController.dispose();
     super.dispose();
   }
 
@@ -183,6 +212,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         colorHex: _selectedColor,
         reminderTime: reminderStr,
         targetCompletions: targetCompletions,
+        category: _selectedCategory,
         isFinished: widget.taskToEdit?.isFinished ?? 0,
       );
 
@@ -214,6 +244,13 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         await ns.scheduleTaskReminder(savedTask);
       } else {
         await ns.cancelReminder(savedTask.id!);
+      }
+
+      // Save Subtasks
+      for (var sub in _subTasks) {
+        if (sub.id == null) {
+          await DatabaseService.instance.addSubTask(taskId, sub.title);
+        }
       }
 
       if (mounted) Navigator.pop(context);
@@ -282,6 +319,19 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 controller: _titleController,
                 decoration: const InputDecoration(labelText: 'Task Title'),
                 validator: (value) => value == null || value.isEmpty ? 'Please enter a title' : null,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: 'Category (Optional)',
+                  prefixIcon: Icon(Icons.label_outline),
+                ),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('None')),
+                  ..._categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))),
+                ],
+                onChanged: (value) => setState(() => _selectedCategory = value),
               ),
               const SizedBox(height: 16),
               
@@ -452,6 +502,71 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                   }).toList(),
                 ),
               ],
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Checklist (Sub-Tasks)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  TextButton.icon(
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add Item'),
+                    onPressed: () {
+                      final title = _subtaskController.text.trim();
+                      if (title.isNotEmpty) {
+                        setState(() {
+                          _subTasks.add(SubTask(taskId: widget.taskToEdit?.id ?? 0, title: title));
+                          _subtaskController.clear();
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _subtaskController,
+                decoration: const InputDecoration(
+                  hintText: 'Add a sub-task...',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                onSubmitted: (value) {
+                  final title = value.trim();
+                  if (title.isNotEmpty) {
+                    setState(() {
+                      _subTasks.add(SubTask(taskId: widget.taskToEdit?.id ?? 0, title: title));
+                      _subtaskController.clear();
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _subTasks.length,
+                itemBuilder: (context, index) {
+                  final sub = _subTasks[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading: const Icon(Icons.subdirectory_arrow_right, size: 16),
+                    title: Text(sub.title),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close, size: 16),
+                      onPressed: () async {
+                        if (sub.id != null) {
+                           await DatabaseService.instance.deleteSubTask(sub.id!);
+                        }
+                        setState(() {
+                          _subTasks.removeAt(index);
+                        });
+                      },
+                    ),
+                  );
+                },
+              ),
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: (_startDate != null && (_isTargetGoal || _endDate != null)) ? _saveTask : null,

@@ -14,6 +14,17 @@ class TaskListScreen extends StatefulWidget {
 class TaskListScreenState extends State<TaskListScreen> {
   DateTime _focusedMonth = DateTime.now();
   String _filter = 'Active'; // Active, Completed, All
+  String? _categoryFilter;
+
+  static const List<String> _categories = [
+    'Personal',
+    'Work',
+    'Health',
+    'Home',
+    'Finance',
+    'Social',
+    'Hobby',
+  ];
 
   void resetToToday() {
     setState(() {
@@ -60,6 +71,11 @@ class TaskListScreenState extends State<TaskListScreen> {
       if (_filter == 'Active') return !isExpiredOrFinished;
       if (_filter == 'Completed') return isExpiredOrFinished;
 
+      // 3. Category Filter
+      if (_categoryFilter != null && task.category != _categoryFilter) {
+        return false;
+      }
+
       return true;
     }).toList();
   }
@@ -100,8 +116,9 @@ class TaskListScreenState extends State<TaskListScreen> {
         ),
 
         // Filter Chips
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
           child: Row(
             children: [
               _buildFilterChip('Active'),
@@ -109,6 +126,26 @@ class TaskListScreenState extends State<TaskListScreen> {
               _buildFilterChip('Completed'),
               const SizedBox(width: 8),
               _buildFilterChip('All'),
+              const SizedBox(width: 16),
+              const VerticalDivider(width: 1),
+              const SizedBox(width: 16),
+              ChoiceChip(
+                label: const Text('All Categories'),
+                selected: _categoryFilter == null,
+                onSelected: (selected) {
+                  if (selected) setState(() => _categoryFilter = null);
+                },
+              ),
+              ..._categories.map((cat) => Padding(
+                padding: const EdgeInsets.only(left: 8.0),
+                child: ChoiceChip(
+                  label: Text(cat),
+                  selected: _categoryFilter == cat,
+                  onSelected: (selected) {
+                    setState(() => _categoryFilter = selected ? cat : null);
+                  },
+                ),
+              )),
             ],
           ),
         ),
@@ -159,16 +196,48 @@ class TaskListScreenState extends State<TaskListScreen> {
               backgroundColor: HexColor.fromHex(task.colorHex),
               radius: 12,
             ),
-            title: Text(
-              task.title,
-              style: TextStyle(
-                decoration: isExpiredOrFinished ? TextDecoration.lineThrough : null,
-                decorationColor: isExpiredOrFinished ? Colors.grey[800] : null,
-                decorationThickness: 2.0,
-                color: isExpiredOrFinished ? Colors.grey : null,
-              ),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    task.title,
+                    style: TextStyle(
+                      decoration: isExpiredOrFinished ? TextDecoration.lineThrough : null,
+                      decorationColor: isExpiredOrFinished ? Colors.grey[800] : null,
+                      decorationThickness: 2.0,
+                      color: isExpiredOrFinished ? Colors.grey : null,
+                    ),
+                  ),
+                ),
+                FutureBuilder<int>(
+                  future: DatabaseService.instance.getTaskStreak(task),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data! > 0) {
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('🔥', style: TextStyle(fontSize: 12)),
+                          const SizedBox(width: 2),
+                          Text(
+                            '${snapshot.data}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return const SizedBox();
+                  },
+                ),
+              ],
             ),
-            subtitle: Text(_formatRecurrence(task)),
+            subtitle: Text(
+              '${task.category != null ? "[${task.category}] " : ""}${_formatRecurrence(task)}',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
             onTap: () => _navigateToDetail(task),
             trailing: const Icon(Icons.chevron_right, size: 20),
           ),

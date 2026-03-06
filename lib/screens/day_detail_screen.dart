@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:confetti/confetti.dart';
 import '../models/task_comment.dart';
 import '../models/task.dart';
+import '../models/subtask.dart';
 import '../services/database_service.dart';
 import '../utils/recurrence_helper.dart';
 import '../widgets/task_tile.dart';
@@ -38,11 +41,16 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
   List<Task> _allTasks = [];
   Map<int, bool> _completionStatus = {}; // taskId -> isCompleted
   Map<int, TaskComment> _commentsMap = {}; // taskId -> TaskComment
+  Map<int, int> _streaks = {}; // taskId -> streak
+  List<SubTask> _allSubTasks = [];
+  Map<int, bool> _subTaskCompletions = {}; // subtaskId -> isCompleted
   int? _highlightTaskId;
+  late ConfettiController _confettiController;
 
   @override
   void initState() {
     super.initState();
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
     _currentDate = widget.selectedDate;
     _highlightTaskId = widget.highlightTaskId;
     _startHighlightTimer();
@@ -66,6 +74,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
 
   @override
   void dispose() {
+    _confettiController.dispose();
     DatabaseService.instance.removeListener(_loadData);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -107,6 +116,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
 
   Future<void> _loadDayContext(DateTime date) async {
     final completions = await DatabaseService.instance.getCompletionsForDate(date);
+    final subCompletions = await DatabaseService.instance.getSubTaskCompletionsForDate(date);
     final comments = await DatabaseService.instance.getCommentsMapForDate(date);
     
     if (mounted) {
@@ -114,8 +124,36 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
         _completionStatus = {
           for (var c in completions) c.taskId: c.isCompleted,
         };
+        _subTaskCompletions = {
+          for (var id in subCompletions.keys) id: subCompletions[id]!.isCompleted,
+        };
         _commentsMap = comments;
       });
+
+      // Fetch all relevant subtask definitions
+      List<SubTask> allSubs = [];
+      for (var task in _allTasks) {
+        final subs = await DatabaseService.instance.getSubTasksForTask(task.id!);
+        allSubs.addAll(subs);
+      }
+
+      // Calculate streaks for visible tasks
+      final Map<int, int> streaks = {};
+      final activeTasks = _allTasks.where((task) {
+        final isCompleted = _completionStatus[task.id] ?? false;
+        return RecurrenceHelper.isTaskActiveOnDate(task, date, isCompletedOnDate: isCompleted);
+      });
+
+      for (var task in activeTasks) {
+        streaks[task.id!] = await DatabaseService.instance.getTaskStreak(task);
+      }
+
+      if (mounted) {
+        setState(() {
+          _allSubTasks = allSubs;
+          _streaks = streaks;
+        });
+      }
     }
   }
 
@@ -129,7 +167,29 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
     _loadDayContext(_currentDate);
   }
 
+  Future<void> _toggleSubTask(int subtaskId) async {
+    HapticFeedback.lightImpact();
+
+    final current = _subTaskCompletions[subtaskId] ?? false;
+    setState(() {
+      _subTaskCompletions[subtaskId] = !current;
+    });
+
+    try {
+      await DatabaseService.instance.toggleSubTaskCompletion(subtaskId, _currentDate);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _subTaskCompletions[subtaskId] = current;
+        });
+      }
+    }
+  }
+
   Future<void> _toggleTask(int taskId) async {
+    // Haptic feedback
+    HapticFeedback.lightImpact();
+
     // Optimistic UI update
     final currentStatus = _completionStatus[taskId] ?? false;
     setState(() {
@@ -137,7 +197,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
     });
 
     try {
-      await DatabaseService.instance.toggleTaskCompletion(taskId, _currentDate);
+      final goalJustFinished = await DatabaseService.instance.toggleTaskCompletion(taskId, _currentDate);
+      if (goalJustFinished) {
+        _confettiController.play();
+      }
     } catch (e) {
       // Revert on error
       if (mounted) {
@@ -208,9 +271,11 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
       return RecurrenceHelper.isTaskActiveOnDate(task, _currentDate, isCompletedOnDate: isCompleted);
     }).toList();
 
-    return Column(
+    return Stack(
       children: [
-        // Date Helper Bar
+        Column(
+          children: [
+            // Date Helper Bar
         Container(
           padding: const EdgeInsets.all(16.0),
           color: Colors.grey[200],
@@ -237,11 +302,18 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
                     final isCompleted = _completionStatus[task.id] ?? false;
                     final comment = _commentsMap[task.id];
                     
+                    final subTasks = _allSubTasks.where((s) => s.taskId == task.id).toList();
+                    
                     return TaskTile(
                       title: task.title,
                       isCompleted: isCompleted,
                       isHighlighted: task.id == _highlightTaskId,
                       comment: comment?.text,
+                      streak: _streaks[task.id] ?? 0,
+                      category: task.category,
+                      subTasks: subTasks,
+                      subTaskCompletions: _subTaskCompletions,
+                      onSubTaskToggle: _toggleSubTask,
                       onCommentTap: () => _handleComment(task),
                       onToggle: () => _toggleTask(task.id!),
                       onTap: () async {
@@ -256,6 +328,23 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
                     );
                   },
                 ),
+        ),
+      ],
+    ),
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirectionality: BlastDirectionality.explosive,
+            shouldLoop: false,
+            colors: const [
+              Colors.green,
+              Colors.blue,
+              Colors.pink,
+              Colors.orange,
+              Colors.purple
+            ],
+          ),
         ),
       ],
     );
