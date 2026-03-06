@@ -45,6 +45,15 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _handleCsvBackup(BuildContext context) async {
+    final scaffold = ScaffoldMessenger.of(context);
+    try {
+      await BackupService.exportToCsv();
+    } catch (e) {
+      scaffold.showSnackBar(SnackBar(content: Text('CSV Export Failed: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -76,6 +85,53 @@ class SettingsScreen extends StatelessWidget {
             value: isDark,
             onChanged: (val) => themeProvider.toggleTheme(val),
           ),
+          
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Accent Color', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      Colors.blue,
+                      Colors.red,
+                      Colors.green,
+                      Colors.purple,
+                      Colors.orange,
+                      Colors.teal,
+                      Colors.pink,
+                      Colors.indigo,
+                      Colors.amber,
+                    ].map((color) {
+                      final isSelected = themeProvider.seedColor.value == color.value;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: GestureDetector(
+                          onTap: () => themeProvider.updateSeedColor(color),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: isSelected ? Border.all(color: Colors.white, width: 3) : null,
+                              boxShadow: isSelected ? [BoxShadow(color: Colors.black26, blurRadius: 4)] : null,
+                            ),
+                            child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
 
           const Divider(),
           const Padding(
@@ -93,6 +149,12 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('Export to JSON'),
             subtitle: const Text('Readable backup format for sharing'),
             onTap: () => _handleJsonBackup(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.table_chart),
+            title: const Text('Export to CSV'),
+            subtitle: const Text('Portable format for Spreadsheets'),
+            onTap: () => _handleCsvBackup(context),
           ),
           ListTile(
             leading: const Icon(Icons.upload),

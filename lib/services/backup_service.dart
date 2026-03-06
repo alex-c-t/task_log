@@ -6,10 +6,36 @@ import 'package:sqflite/sqflite.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:csv/csv.dart';
 import '../services/database_service.dart';
 
 class BackupService {
   
+  /// Exports the tasks table as a CSV file.
+  static Future<void> exportToCsv() async {
+    final db = await DatabaseService.instance.database;
+    final tasks = await db.query('tasks');
+
+    if (tasks.isEmpty) return;
+
+    List<List<dynamic>> rows = [];
+    
+    // Header
+    rows.add(tasks.first.keys.toList());
+    
+    // Data
+    for (var task in tasks) {
+      rows.add(task.values.toList());
+    }
+
+    String csvData = ListToCsvConverter().convert(rows);
+    final tempDir = await getTemporaryDirectory();
+    final file = File(join(tempDir.path, 'tasklet_export_${DateTime.now().millisecondsSinceEpoch}.csv'));
+    
+    await file.writeAsString(csvData);
+    await Share.shareXFiles([XFile(file.path)], text: 'Tasklet CSV Export');
+  }
+
   /// Exports the current database as a structured JSON file.
   /// This is more portable and transparent than a raw SQLite file.
   static Future<void> exportToJson() async {
