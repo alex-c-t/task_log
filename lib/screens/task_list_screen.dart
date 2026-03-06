@@ -262,28 +262,34 @@ class TaskListScreenState extends State<TaskListScreen> {
       return 'Target Goal: ${task.targetCompletions} completions';
     }
 
+    final n = task.recurrenceInterval;
+
     if (task.recurrenceType == RecurrenceType.daily) {
-      // Check if effectively one-time
       if (task.endDate != null &&
           task.startDate.year == task.endDate!.year && 
           task.startDate.month == task.endDate!.month &&
           task.startDate.day == task.endDate!.day) {
         return 'One-time';
       }
-      return 'Daily';
+      return n > 1 ? 'Every $n days' : 'Daily';
     }
+
     if (task.recurrenceType == RecurrenceType.weekly) {
-        // e.g. "Weekly (Mon, Wed)"
-        // This requires mapping int to String.
-        // Assuming WeekStart is handled elsewhere or standard, 1=Mon, 7=Sun.
         const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        if (task.weeklyDays == null || task.weeklyDays!.isEmpty) return 'Weekly';
+        if (task.weeklyDays == null || task.weeklyDays!.isEmpty) {
+          return n > 1 ? 'Every $n weeks' : 'Weekly';
+        }
         
-        // Sort days
         final sorted = List<int>.from(task.weeklyDays!)..sort();
         final labels = sorted.map((d) => days[(d - 1) % 7]).join(', ');
-        return 'Weekly ($labels)';
+        final prefix = n > 1 ? 'Every $n weeks' : 'Weekly';
+        return '$prefix ($labels)';
     }
+
+    if (task.recurrenceType == RecurrenceType.monthly) {
+      return n > 1 ? 'Every $n months' : 'Monthly';
+    }
+
     return '';
   }
 }

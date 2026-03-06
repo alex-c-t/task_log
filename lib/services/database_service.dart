@@ -34,7 +34,7 @@ class DatabaseService extends ChangeNotifier {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -58,7 +58,8 @@ class DatabaseService extends ChangeNotifier {
         reminderTime TEXT,
         targetCompletions INTEGER,
         isFinished INTEGER NOT NULL DEFAULT 0,
-        category TEXT
+        category TEXT,
+        recurrenceInterval INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
@@ -213,6 +214,10 @@ class DatabaseService extends ChangeNotifier {
 
     if (oldVersion < 6) {
       await db.execute('ALTER TABLE tasks ADD COLUMN category TEXT');
+    }
+
+    if (oldVersion < 7) {
+      await db.execute('ALTER TABLE tasks ADD COLUMN recurrenceInterval INTEGER NOT NULL DEFAULT 1');
     }
   }
 

@@ -23,6 +23,9 @@ class Task with SyncEntity {
 
   /// Optional category/tag for the task (e.g., "Work", "Health").
   final String? category;
+
+  /// Every [N] recurrence units (e.g., Every 2 days, Every 3 weeks). Default is 1.
+  final int recurrenceInterval;
   
   @override
   String uuid;
@@ -42,6 +45,7 @@ class Task with SyncEntity {
     this.reminderTime,
     this.targetCompletions,
     this.category,
+    this.recurrenceInterval = 1,
     this.isFinished = 0,
     String? uuid,
     DateTime? createdAt,
@@ -66,6 +70,7 @@ class Task with SyncEntity {
       'reminderTime': reminderTime,
       'targetCompletions': targetCompletions,
       'category': category,
+      'recurrenceInterval': recurrenceInterval,
       'isFinished': isFinished,
       ...toMapSync(),
     };
@@ -88,6 +93,7 @@ class Task with SyncEntity {
       reminderTime: map['reminderTime'],
       targetCompletions: map['targetCompletions'],
       category: map['category'],
+      recurrenceInterval: map['recurrenceInterval'] ?? 1,
       isFinished: map['isFinished'] ?? 0,
       uuid: map['uuid'],
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,

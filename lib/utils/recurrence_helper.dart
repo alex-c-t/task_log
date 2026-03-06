@@ -66,18 +66,38 @@ class RecurrenceHelper {
   }
 
   static bool _checkRecurrence(Task task, DateTime date) {
+    final interval = task.recurrenceInterval;
+    final start = DateTime(task.startDate.year, task.startDate.month, task.startDate.day);
+
     switch (task.recurrenceType) {
       case RecurrenceType.daily:
-        return true;
+        if (interval <= 1) return true;
+        final diffDays = date.difference(start).inDays;
+        return diffDays % interval == 0;
 
       case RecurrenceType.weekly:
-        if (task.weeklyDays == null || task.weeklyDays!.isEmpty) {
+        // 1. Check if the specific weekday is selected
+        if (task.weeklyDays == null || !task.weeklyDays!.contains(date.weekday)) {
           return false;
         }
-        return task.weeklyDays!.contains(date.weekday);
+        if (interval <= 1) return true;
+
+        // 2. Check if this is the correct week in the interval
+        // We find the "ISO Week" start (Monday) for both dates
+        final taskWeekStart = start.subtract(Duration(days: start.weekday - 1));
+        final dateWeekStart = date.subtract(Duration(days: date.weekday - 1));
+        final diffWeeks = dateWeekStart.difference(taskWeekStart).inDays ~/ 7;
+        
+        return diffWeeks % interval == 0;
 
       case RecurrenceType.monthly:
-        return date.day == task.startDate.day;
+        // 1. Check if the day of month matches
+        if (date.day != start.day) return false;
+        if (interval <= 1) return true;
+
+        // 2. Check if this is the correct month in the interval
+        final diffMonths = (date.year - start.year) * 12 + (date.month - start.month);
+        return diffMonths % interval == 0;
     }
   }
 }

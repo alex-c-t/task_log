@@ -39,6 +39,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _targetCompletionsController = TextEditingController();
+  final _recurrenceIntervalController = TextEditingController(text: '1');
   DateTime? _startDate;
   DateTime? _endDate;
   bool _isTargetGoal = false;
@@ -99,6 +100,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     _selectedWeeklyDays = List.of(editTask?.weeklyDays ?? []);
     _selectedColor = editTask?.colorHex ?? _colorPalette.first;
     _selectedCategory = editTask?.category;
+    _recurrenceIntervalController.text = (editTask?.recurrenceInterval ?? 1).toString();
     
     if (editTask?.reminderTime != null) {
       final parts = editTask!.reminderTime!.split(':');
@@ -123,6 +125,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   void dispose() {
     _titleController.dispose();
     _targetCompletionsController.dispose();
+    _recurrenceIntervalController.dispose();
     _subtaskController.dispose();
     super.dispose();
   }
@@ -213,6 +216,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         reminderTime: reminderStr,
         targetCompletions: targetCompletions,
         category: _selectedCategory,
+        recurrenceInterval: int.tryParse(_recurrenceIntervalController.text) ?? 1,
         isFinished: widget.taskToEdit?.isFinished ?? 0,
       );
 
@@ -464,21 +468,73 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 ),
               ],
               const SizedBox(height: 16),
-              DropdownButtonFormField<RecurrenceType>(
-                initialValue: _recurrenceType,
-                decoration: const InputDecoration(labelText: 'Recurrence'),
-                items: RecurrenceType.values.map((type) {
-                  return DropdownMenuItem(
-                    value: type,
-                    child: Text(type.toString().split('.').last.toUpperCase()),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _recurrenceType = value!;
-                  });
-                },
-              ),
+              if (!_isTargetGoal) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12.0, right: 12.0),
+                      child: Text('Repeat every', style: TextStyle(fontSize: 16)),
+                    ),
+                    Expanded(
+                      flex: 1,
+                      child: TextFormField(
+                        controller: _recurrenceIntervalController,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        decoration: const InputDecoration(
+                          contentPadding: EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        validator: (value) {
+                          if (_isTargetGoal) return null;
+                          final n = int.tryParse(value ?? '');
+                          if (n == null || n <= 0) return 'Invalid';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: DropdownButtonFormField<RecurrenceType>(
+                        value: _recurrenceType,
+                        decoration: const InputDecoration(
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        items: RecurrenceType.values.map((type) {
+                          final label = type == RecurrenceType.daily ? 'Days' : 
+                                      type == RecurrenceType.weekly ? 'Weeks' : 'Months';
+                          return DropdownMenuItem(
+                            value: type,
+                            child: Text(label),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _recurrenceType = value!;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                DropdownButtonFormField<RecurrenceType>(
+                  value: _recurrenceType,
+                  decoration: const InputDecoration(labelText: 'Recurrence'),
+                  items: RecurrenceType.values.map((type) {
+                    return DropdownMenuItem(
+                      value: type,
+                      child: Text(type.toString().split('.').last.toUpperCase()),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _recurrenceType = value!;
+                    });
+                  },
+                ),
+              ],
               if (_recurrenceType == RecurrenceType.weekly) ...[
                 const SizedBox(height: 16),
                 const Text('Select Days (Mon-Sun):'),
