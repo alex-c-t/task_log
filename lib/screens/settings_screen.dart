@@ -36,6 +36,15 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _handleJsonBackup(BuildContext context) async {
+    final scaffold = ScaffoldMessenger.of(context);
+    try {
+      await BackupService.exportToJson();
+    } catch (e) {
+      scaffold.showSnackBar(SnackBar(content: Text('JSON Backup Failed: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -80,9 +89,15 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => _handleBackup(context),
           ),
           ListTile(
+            leading: const Icon(Icons.code),
+            title: const Text('Export to JSON'),
+            subtitle: const Text('Readable backup format for sharing'),
+            onTap: () => _handleJsonBackup(context),
+          ),
+          ListTile(
             leading: const Icon(Icons.upload),
-            title: const Text('Restore Database'),
-            subtitle: const Text('Import data from a backup file (Requires Restart)'),
+            title: const Text('Restore Data'),
+            subtitle: const Text('Import from .db or .json file (Requires Restart)'),
             onTap: () => _handleRestore(context),
           ),
         ],

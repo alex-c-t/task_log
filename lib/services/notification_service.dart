@@ -30,6 +30,7 @@ class NotificationService {
           'task_category',
           actions: [
             DarwinNotificationAction.plain('mark_completed', 'Mark as Completed'),
+            DarwinNotificationAction.plain('snooze', 'Snooze (15m)'),
           ],
         ),
       ],
@@ -64,6 +65,11 @@ class NotificationService {
     if (payload == null) return;
     final taskId = int.tryParse(payload);
     if (taskId == null) return;
+
+    if (response.actionId == 'snooze') {
+      instance.snoozeTask(taskId);
+      return;
+    }
 
     if (response.actionId == 'mark_completed') {
       try {
@@ -178,6 +184,11 @@ class NotificationService {
               'Mark as Completed',
               showsUserInterface: false,
             ),
+            AndroidNotificationAction(
+              'snooze',
+              'Snooze (15m)',
+              showsUserInterface: false,
+            ),
           ],
         ),
         iOS: const DarwinNotificationDetails(
@@ -195,6 +206,43 @@ class NotificationService {
     await updateTaskReminderState(task);
   }
 
+  Future<void> snoozeTask(int taskId, {int minutes = 15}) async {
+    try {
+      final task = await DatabaseService.instance.getTaskById(taskId);
+      if (task == null) return;
+
+      await _notificationsPlugin.cancel(taskId);
+
+      final scheduledDate = tz.TZDateTime.now(tz.local).add(Duration(minutes: minutes));
+
+      await _notificationsPlugin.zonedSchedule(
+        task.id!,
+        '${task.title} (Snoozed)',
+        'Reminding you in $minutes minutes',
+        scheduledDate,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'task_reminders',
+            'Task Reminders',
+            importance: Importance.max,
+            priority: Priority.high,
+            color: Color(int.parse(task.colorHex.replaceFirst('#', '0xFF'))),
+            actions: [
+              const AndroidNotificationAction('mark_completed', 'Mark as Completed', showsUserInterface: false),
+              const AndroidNotificationAction('snooze', 'Snooze (15m)', showsUserInterface: false),
+            ],
+          ),
+          iOS: const DarwinNotificationDetails(categoryIdentifier: 'task_category'),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        payload: task.id.toString(),
+      );
+    } catch (e) {
+      debugPrint('NotificationService: Error snoozing task: $e');
+    }
+  }
+
   Future<void> cancelReminder(int taskId) async {
     await _notificationsPlugin.cancel(taskId);
   }
@@ -204,6 +252,54 @@ class NotificationService {
 void notificationTapBackground(NotificationResponse response) async {
   DartPluginRegistrant.ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (response.actionId == 'snooze') {
+    final payload = response.payload;
+    if (payload != null) {
+      final taskId = int.tryParse(payload);
+      if (taskId != null) {
+        try {
+          // Initialize background context if needed for snooze scheduling
+          tz.initializeTimeZones();
+          final FlutterLocalNotificationsPlugin bgPlugin = FlutterLocalNotificationsPlugin();
+          final now = tz.TZDateTime.now(tz.local);
+          final scheduledDate = now.add(const Duration(minutes: 15));
+          
+          // Fetch task title for the snoozed notification
+          // Note: In background isolate, we might not have all context,
+          // but we can try to get it from DB.
+          final task = await DatabaseService.instance.getTaskById(taskId);
+          if (task != null) {
+            await bgPlugin.zonedSchedule(
+              taskId,
+              '${task.title} (Snoozed)',
+              'Reminding you in 15 minutes',
+              scheduledDate,
+              NotificationDetails(
+                android: AndroidNotificationDetails(
+                  'task_reminders',
+                  'Task Reminders',
+                  importance: Importance.max,
+                  priority: Priority.high,
+                  actions: [
+                    const AndroidNotificationAction('mark_completed', 'Mark as Completed', showsUserInterface: false),
+                    const AndroidNotificationAction('snooze', 'Snooze (15m)', showsUserInterface: false),
+                  ],
+                ),
+                iOS: const DarwinNotificationDetails(categoryIdentifier: 'task_category'),
+              ),
+              androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+              payload: taskId.toString(),
+            );
+          }
+        } catch (e) {
+          debugPrint('NotificationService: Error in background snooze: $e');
+        }
+      }
+    }
+    return;
+  }
 
   if (response.actionId == 'mark_completed') {
     final payload = response.payload;

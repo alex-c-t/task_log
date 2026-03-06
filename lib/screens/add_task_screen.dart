@@ -326,7 +326,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 decoration: const InputDecoration(
                   labelText: 'Category (Optional)',
                   prefixIcon: Icon(Icons.label_outline),
@@ -497,7 +497,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                     Expanded(
                       flex: 2,
                       child: DropdownButtonFormField<RecurrenceType>(
-                        value: _recurrenceType,
+                        initialValue: _recurrenceType,
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         ),
@@ -520,7 +520,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 ),
               ] else ...[
                 DropdownButtonFormField<RecurrenceType>(
-                  value: _recurrenceType,
+                  initialValue: _recurrenceType,
                   decoration: const InputDecoration(labelText: 'Recurrence'),
                   items: RecurrenceType.values.map((type) {
                     return DropdownMenuItem(

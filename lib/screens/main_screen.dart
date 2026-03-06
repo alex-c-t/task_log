@@ -7,6 +7,7 @@ import 'goals_list_screen.dart';
 import 'settings_screen.dart';
 import 'about_screen.dart';
 import 'add_task_screen.dart';
+import 'insights_screen.dart';
 
 /// The main container screen for the app.
 /// Implements Hybrid Navigation:
@@ -172,6 +173,11 @@ class _MainScreenState extends State<MainScreen> {
                 leading: const Icon(Icons.settings),
                 title: const Text('Settings'),
                 onTap: () => _navigateToDrawerItem(const SettingsScreen()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.analytics_outlined),
+                title: const Text('Insights'),
+                onTap: () => _navigateToDrawerItem(const InsightsScreen()),
               ),
               ListTile(
                 leading: const Icon(Icons.info),
