@@ -1,4 +1,4 @@
-
+import 'dart:convert';
 import '../models/task.dart';
 
 class RecurrenceHelper {
@@ -91,13 +91,38 @@ class RecurrenceHelper {
         return diffWeeks % interval == 0;
 
       case RecurrenceType.monthly:
-        // 1. Check if the day of month matches
-        if (date.day != start.day) return false;
-        if (interval <= 1) return true;
-
-        // 2. Check if this is the correct month in the interval
+        // 1. Check if this is the correct month in the interval
         final diffMonths = (date.year - start.year) * 12 + (date.month - start.month);
-        return diffMonths % interval == 0;
+        if (diffMonths % interval != 0) return false;
+
+        // 2. Check for Advanced Rules
+        if (task.recurrenceRule != null) {
+          try {
+            final rule = jsonDecode(task.recurrenceRule!);
+            if (rule['type'] == 'last_day') {
+              final lastDay = DateTime(date.year, date.month + 1, 0).day;
+              return date.day == lastDay;
+            }
+            if (rule['type'] == 'last_weekday') {
+              final weekday = rule['weekday'] as int;
+              if (date.weekday != weekday) return false;
+              final nextWeekSameDay = date.add(const Duration(days: 7));
+              return nextWeekSameDay.month != date.month;
+            }
+            if (rule['type'] == 'ordinal_weekday') {
+              final ordinal = rule['ordinal'] as int; // 1, 2, 3, 4
+              final weekday = rule['weekday'] as int;
+              if (date.weekday != weekday) return false;
+              final currentOrdinal = ((date.day - 1) ~/ 7) + 1;
+              return currentOrdinal == ordinal;
+            }
+          } catch (_) {
+            // Fallback to day of month if rule parsing fails
+          }
+        }
+
+        // 3. Fallback: Check if the day of month matches
+        return date.day == start.day;
     }
   }
 }
