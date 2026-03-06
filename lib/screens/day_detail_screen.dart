@@ -204,7 +204,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
   Widget build(BuildContext context) {
     // Filter tasks active on _currentDate
     final activeTasks = _allTasks.where((task) {
-      return RecurrenceHelper.isTaskActiveOnDate(task, _currentDate);
+      final isCompleted = _completionStatus[task.id] ?? false;
+      return RecurrenceHelper.isTaskActiveOnDate(task, _currentDate, isCompletedOnDate: isCompleted);
     }).toList();
 
     return Column(

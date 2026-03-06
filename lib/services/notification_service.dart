@@ -107,7 +107,7 @@ class NotificationService {
 
   /// Updates the reminder state based on whether the task is completed today.
   Future<void> updateTaskReminderState(Task task) async {
-    if (task.reminderTime == null || task.id == null) {
+    if (task.reminderTime == null || task.id == null || task.isFinished == 1) {
       await cancelReminder(task.id ?? -1);
       return;
     }

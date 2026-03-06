@@ -34,8 +34,8 @@ class RecurrenceHelper {
         // Never artificially clutter the future calendar with open goals
         return false;
       } else {
-        // For today, only show if the goal isn't completely finished yet
-        if (task.isFinished == 1) return false;
+        // For today, only show if the goal isn't completely finished yet, OR it was completed today
+        if (task.isFinished == 1 && !isCompletedOnDate) return false;
       }
     } else {
       // It's a Regular Task with an End Date
