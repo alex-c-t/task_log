@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'calendar_screen.dart';
 import 'day_detail_screen.dart';
 import 'task_list_screen.dart';
+import 'goals_list_screen.dart';
 import 'settings_screen.dart';
 import 'about_screen.dart';
 import 'add_task_screen.dart';
@@ -87,6 +88,7 @@ class _MainScreenState extends State<MainScreen> {
         highlightTaskId: widget.highlightTaskId,
       ),
       TaskListScreen(key: _taskListKey),
+      const GoalsListScreen(), // Index 3
     ];
 
     String title = 'Tasklet';
@@ -94,6 +96,8 @@ class _MainScreenState extends State<MainScreen> {
       title = DateFormat.yMMMd().format(_selectedDate);
     } else if (_currentIndex == 2) {
       title = 'Tasks';
+    } else if (_currentIndex == 3) {
+      title = 'Goals & Habits';
     }
 
     return PopScope(
@@ -199,6 +203,11 @@ class _MainScreenState extends State<MainScreen> {
               icon: Icon(Icons.list_alt_outlined),
               selectedIcon: Icon(Icons.list_alt),
               label: 'Tasks',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.flag_outlined),
+              selectedIcon: Icon(Icons.flag),
+              label: 'Goals',
             ),
           ],
         ),

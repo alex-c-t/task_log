@@ -75,78 +75,60 @@ class TaskListScreenState extends State<TaskListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          // Month Pagination Controls moved from AppBar to Body
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () => _changeMonth(-1),
-                ),
-                Text(
-                  DateFormat.yMMM().format(_focusedMonth),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: () => _changeMonth(1),
-                ),
-              ],
-            ),
-          ),
-
-          // Filter Chips
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              children: [
-                _buildFilterChip('Active'),
-                const SizedBox(width: 8),
-                _buildFilterChip('Completed'),
-                const SizedBox(width: 8),
-                _buildFilterChip('All'),
-              ],
-            ),
-          ),
-
-          TabBar(
-            labelColor: Theme.of(context).colorScheme.primary,
-            unselectedLabelColor: Colors.grey,
-            tabs: const [
-              Tab(text: 'Scheduled Tasks'),
-              Tab(text: 'Target Goals'),
+    return Column(
+      children: [
+        // Month Pagination Controls moved from AppBar to Body
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () => _changeMonth(-1),
+              ),
+              Text(
+                DateFormat.yMMM().format(_focusedMonth),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () => _changeMonth(1),
+              ),
             ],
           ),
-          
-          Expanded(
-            child: FutureBuilder<List<Task>>(
-              future: _loadTasks(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                
-                final allTasks = snapshot.data ?? [];
-                final scheduledTasks = allTasks.where((t) => t.targetCompletions == null).toList();
-                final targetGoals = allTasks.where((t) => t.targetCompletions != null).toList();
+        ),
 
-                return TabBarView(
-                  children: [
-                    _buildTaskList(scheduledTasks),
-                    _buildTaskList(targetGoals),
-                  ],
-                );
-              },
-            ),
+        // Filter Chips
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            children: [
+              _buildFilterChip('Active'),
+              const SizedBox(width: 8),
+              _buildFilterChip('Completed'),
+              const SizedBox(width: 8),
+              _buildFilterChip('All'),
+            ],
           ),
-        ],
-      ),
+        ),
+        
+        Expanded(
+          child: FutureBuilder<List<Task>>(
+            future: _loadTasks(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              
+              final allTasks = snapshot.data ?? [];
+              final scheduledTasks = allTasks.where((t) => t.targetCompletions == null).toList();
+
+              return _buildTaskList(scheduledTasks);
+            },
+          ),
+        ),
+      ],
     );
   }
 
