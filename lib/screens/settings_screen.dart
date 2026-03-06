@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/preferences_provider.dart';
 import '../services/backup_service.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -84,6 +85,23 @@ class SettingsScreen extends StatelessWidget {
             subtitle: const Text('Toggle application theme'),
             value: isDark,
             onChanged: (val) => themeProvider.toggleTheme(val),
+          ),
+          
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text('Developer Toggles (Mock)', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+          ),
+          Consumer<PreferencesProvider>(
+            builder: (context, prefs, child) {
+              return SwitchListTile(
+                title: const Text('Active Pro Subscription'),
+                subtitle: const Text('Simulates a server response for Pro Plan'),
+                value: prefs.isProPlan,
+                onChanged: (val) => prefs.updateProPlan(val),
+                activeColor: Colors.orange,
+              );
+            },
           ),
           
           Padding(

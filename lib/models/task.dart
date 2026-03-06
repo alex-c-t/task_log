@@ -55,10 +55,14 @@ class Task with SyncEntity {
     DateTime? createdAt,
     DateTime? updatedAt,
     int isDeleted = 0,
+    int isDirty = 0,
+    String? userId,
   }) : uuid = uuid ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now().toUtc(),
        updatedAt = updatedAt ?? DateTime.now().toUtc() {
     this.isDeleted = isDeleted;
+    this.isDirty = isDirty;
+    this.userId = userId;
   }
 
   /// Converts a [Task] into a Map for SQLite persistence.
@@ -105,6 +109,8 @@ class Task with SyncEntity {
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
       updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt']) : null,
       isDeleted: map['isDeleted'] ?? 0,
+      isDirty: map['isDirty'] ?? 0,
+      userId: map['userId'],
     );
   }
 
@@ -122,6 +128,9 @@ class Task with SyncEntity {
     int? recurrenceInterval,
     int? isFinished,
     String? recurrenceRule,
+    int? isDeleted,
+    int? isDirty,
+    String? userId,
   }) {
     return Task(
       id: id ?? this.id,
@@ -140,6 +149,9 @@ class Task with SyncEntity {
       uuid: uuid,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
+      isDirty: isDirty ?? this.isDirty,
+      userId: userId ?? this.userId,
     );
   }
 }

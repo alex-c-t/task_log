@@ -34,7 +34,7 @@ class DatabaseService extends ChangeNotifier {
 
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -60,7 +60,9 @@ class DatabaseService extends ChangeNotifier {
         isFinished INTEGER NOT NULL DEFAULT 0,
         category TEXT,
         recurrenceInterval INTEGER NOT NULL DEFAULT 1,
-        recurrenceRule TEXT
+        recurrenceRule TEXT,
+        isDirty INTEGER NOT NULL DEFAULT 0,
+        userId TEXT
       )
     ''');
 
@@ -75,6 +77,8 @@ class DatabaseService extends ChangeNotifier {
         createdAt TEXT NOT NULL,
         updatedAt TEXT NOT NULL,
         isDeleted INTEGER NOT NULL DEFAULT 0,
+        isDirty INTEGER NOT NULL DEFAULT 0,
+        userId TEXT,
         UNIQUE(taskId, date)
       )
     ''');
@@ -90,6 +94,8 @@ class DatabaseService extends ChangeNotifier {
         createdAt TEXT NOT NULL,
         updatedAt TEXT NOT NULL,
         isDeleted INTEGER NOT NULL DEFAULT 0,
+        isDirty INTEGER NOT NULL DEFAULT 0,
+        userId TEXT,
         UNIQUE(taskId, date)
       )
     ''');
@@ -100,7 +106,12 @@ class DatabaseService extends ChangeNotifier {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         taskId INTEGER NOT NULL,
         title TEXT NOT NULL,
-        isDeleted INTEGER NOT NULL DEFAULT 0
+        uuid TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        isDeleted INTEGER NOT NULL DEFAULT 0,
+        isDirty INTEGER NOT NULL DEFAULT 0,
+        userId TEXT
       )
     ''');
 
@@ -111,7 +122,12 @@ class DatabaseService extends ChangeNotifier {
         subtaskId INTEGER NOT NULL,
         date TEXT NOT NULL,
         isCompleted INTEGER NOT NULL DEFAULT 0,
+        uuid TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
         isDeleted INTEGER NOT NULL DEFAULT 0,
+        isDirty INTEGER NOT NULL DEFAULT 0,
+        userId TEXT,
         UNIQUE(subtaskId, date)
       )
     ''');
@@ -224,6 +240,46 @@ class DatabaseService extends ChangeNotifier {
     if (oldVersion < 8) {
       await db.execute('ALTER TABLE tasks ADD COLUMN recurrenceRule TEXT');
     }
+
+    if (oldVersion < 9) {
+      // 1. Add userId and isDirty to all tables
+      final tables = ['tasks', 'completions', 'comments', 'task_subtasks', 'subtask_completions'];
+      for (var table in tables) {
+        await db.execute('ALTER TABLE $table ADD COLUMN userId TEXT');
+        await db.execute('ALTER TABLE $table ADD COLUMN isDirty INTEGER DEFAULT 0');
+      }
+
+      // 2. Add missing sync fields to subtask tables
+      await db.execute('ALTER TABLE task_subtasks ADD COLUMN uuid TEXT');
+      await db.execute('ALTER TABLE task_subtasks ADD COLUMN createdAt TEXT');
+      await db.execute('ALTER TABLE task_subtasks ADD COLUMN updatedAt TEXT');
+
+      await db.execute('ALTER TABLE subtask_completions ADD COLUMN uuid TEXT');
+      await db.execute('ALTER TABLE subtask_completions ADD COLUMN createdAt TEXT');
+      await db.execute('ALTER TABLE subtask_completions ADD COLUMN updatedAt TEXT');
+
+      // 3. Backfill missing sync fields for subtasks
+      final now = DateTime.now().toUtc().toIso8601String();
+      final uuidGen = const Uuid();
+
+      final subtasks = await db.query('task_subtasks');
+      for (var s in subtasks) {
+        if (s['uuid'] == null) {
+          await db.update('task_subtasks', 
+            {'uuid': uuidGen.v4(), 'createdAt': now, 'updatedAt': now},
+            where: 'id = ?', whereArgs: [s['id']]);
+        }
+      }
+
+      final subtaskCompletions = await db.query('subtask_completions');
+      for (var sc in subtaskCompletions) {
+        if (sc['uuid'] == null) {
+          await db.update('subtask_completions', 
+            {'uuid': uuidGen.v4(), 'createdAt': now, 'updatedAt': now},
+            where: 'id = ?', whereArgs: [sc['id']]);
+        }
+      }
+    }
   }
 
   // INTENT-BASED APIs (FIX 2)
@@ -302,6 +358,7 @@ class DatabaseService extends ChangeNotifier {
     
     await db.transaction((txn) async {
       // 1. Update the task itself
+      map['isDirty'] = 1;
       await txn.update(
         'tasks',
         map,
@@ -316,26 +373,26 @@ class DatabaseService extends ChangeNotifier {
         final endStr = task.endDate!.toIso8601String().substring(0, 10);
         await txn.update(
           'completions',
-          {'isDeleted': 1, 'updatedAt': now},
+          {'isDeleted': 1, 'updatedAt': now, 'isDirty': 1},
           where: 'taskId = ? AND (date < ? OR date > ?)',
           whereArgs: [task.id, startStr, endStr],
         );
         await txn.update(
           'comments',
-          {'isDeleted': 1, 'updatedAt': now},
+          {'isDeleted': 1, 'updatedAt': now, 'isDirty': 1},
           where: 'taskId = ? AND (date < ? OR date > ?)',
           whereArgs: [task.id, startStr, endStr],
         );
       } else {
         await txn.update(
           'completions',
-          {'isDeleted': 1, 'updatedAt': now},
+          {'isDeleted': 1, 'updatedAt': now, 'isDirty': 1},
           where: 'taskId = ? AND date < ?',
           whereArgs: [task.id, startStr],
         );
         await txn.update(
           'comments',
-          {'isDeleted': 1, 'updatedAt': now},
+          {'isDeleted': 1, 'updatedAt': now, 'isDirty': 1},
           where: 'taskId = ? AND date < ?',
           whereArgs: [task.id, startStr],
         );
@@ -355,7 +412,7 @@ class DatabaseService extends ChangeNotifier {
       // 1. Soft delete all completion history
       await txn.update(
         'completions',
-        {'isDeleted': 1, 'updatedAt': now},
+        {'isDeleted': 1, 'updatedAt': now, 'isDirty': 1},
         where: 'taskId = ?',
         whereArgs: [taskId],
       );
@@ -363,7 +420,7 @@ class DatabaseService extends ChangeNotifier {
       // 2. Soft delete all comments
       await txn.update(
         'comments',
-        {'isDeleted': 1, 'updatedAt': now},
+        {'isDeleted': 1, 'updatedAt': now, 'isDirty': 1},
         where: 'taskId = ?',
         whereArgs: [taskId],
       );
@@ -371,7 +428,7 @@ class DatabaseService extends ChangeNotifier {
       // 3. Soft delete the task record
       await txn.update(
         'tasks',
-        {'isDeleted': 1, 'updatedAt': now},
+        {'isDeleted': 1, 'updatedAt': now, 'isDirty': 1},
         where: 'id = ?',
         whereArgs: [taskId],
       );
@@ -382,10 +439,8 @@ class DatabaseService extends ChangeNotifier {
     final db = await instance.database;
     final map = task.toMap();
     
-    // Ensure colorHex is non-null and not empty at persistence time.
-    if (map['colorHex'] == null || map['colorHex'].toString().isEmpty) {
-      map['colorHex'] = "#E0E0E0"; // Default light grey
-    }
+    map['isDirty'] = 1;
+    // Note: userId will be null for now (local user)
     
     return await db.insert('tasks', map);
   }
@@ -419,7 +474,8 @@ class DatabaseService extends ChangeNotifier {
           {
             'isCompleted': newStatus ? 1 : 0,
             'isDeleted': 0,
-            'updatedAt': now
+            'updatedAt': now,
+            'isDirty': 1
           },
           where: 'taskId = ? AND date = ?',
           whereArgs: [taskId, dateStr],
@@ -433,7 +489,8 @@ class DatabaseService extends ChangeNotifier {
           'uuid': const Uuid().v4(),
           'createdAt': now,
           'updatedAt': now,
-          'isDeleted': 0
+          'isDeleted': 0,
+          'isDirty': 1
         });
       }
 
@@ -462,6 +519,7 @@ class DatabaseService extends ChangeNotifier {
             {
               'isFinished': isNowFinished ? 1 : 0,
               'updatedAt': now,
+              'isDirty': 1
             },
             where: 'id = ?',
             whereArgs: [taskId],
@@ -575,7 +633,8 @@ class DatabaseService extends ChangeNotifier {
           {
             'text': text,
             'isDeleted': 0,
-            'updatedAt': now
+            'updatedAt': now,
+            'isDirty': 1
           },
           where: 'taskId = ? AND date = ?',
           whereArgs: [taskId, dateStr],
@@ -589,7 +648,8 @@ class DatabaseService extends ChangeNotifier {
           'uuid': const Uuid().v4(),
           'createdAt': now,
           'updatedAt': now,
-          'isDeleted': 0
+          'isDeleted': 0,
+          'isDirty': 1
         });
       }
     });
@@ -605,7 +665,8 @@ class DatabaseService extends ChangeNotifier {
       'comments',
       {
         'isDeleted': 1,
-        'updatedAt': now
+        'updatedAt': now,
+        'isDirty': 1
       },
       where: 'taskId = ? AND date = ?',
       whereArgs: [taskId, dateStr],
@@ -663,16 +724,26 @@ class DatabaseService extends ChangeNotifier {
         final newStatus = forceStatus ?? !currentStatus;
         await txn.update(
           'subtask_completions',
-          {'isCompleted': newStatus ? 1 : 0, 'isDeleted': 0},
+          {
+            'isCompleted': newStatus ? 1 : 0, 
+            'isDeleted': 0, 
+            'updatedAt': DateTime.now().toUtc().toIso8601String(),
+            'isDirty': 1
+          },
           where: 'subtaskId = ? AND date = ?',
           whereArgs: [subtaskId, dateStr],
         );
       } else {
+        final now = DateTime.now().toUtc().toIso8601String();
         await txn.insert('subtask_completions', {
           'subtaskId': subtaskId,
           'date': dateStr,
           'isCompleted': (forceStatus ?? true) ? 1 : 0,
+          'uuid': const Uuid().v4(),
+          'createdAt': now,
+          'updatedAt': now,
           'isDeleted': 0,
+          'isDirty': 1
         });
       }
     });
@@ -683,10 +754,15 @@ class DatabaseService extends ChangeNotifier {
   /// Adds a new subtask definition to a task blueprint.
   Future<int> addSubTask(int taskId, String title) async {
     final db = await instance.database;
+    final now = DateTime.now().toUtc().toIso8601String();
     final id = await db.insert('task_subtasks', {
       'taskId': taskId,
       'title': title,
-      'isDeleted': 0
+      'uuid': const Uuid().v4(),
+      'createdAt': now,
+      'updatedAt': now,
+      'isDeleted': 0,
+      'isDirty': 1
     });
     notifyListeners();
     return id;
@@ -695,9 +771,14 @@ class DatabaseService extends ChangeNotifier {
   /// Soft deletes a subtask definition.
   Future<void> deleteSubTask(int subtaskId) async {
     final db = await instance.database;
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.update(
       'task_subtasks',
-      {'isDeleted': 1},
+      {
+        'isDeleted': 1,
+        'updatedAt': now,
+        'isDirty': 1
+      },
       where: 'id = ?',
       whereArgs: [subtaskId],
     );

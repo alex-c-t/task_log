@@ -199,9 +199,9 @@ class _MainScreenState extends State<MainScreen> {
               const Divider(),
               SwitchListTile(
                 title: const Text('Pro Mode'),
-                subtitle: const Text('Unlock advanced features'),
+                subtitle: Text(prefs.isProPlan ? 'Unlock advanced features' : 'Requires Pro Plan'),
                 value: isPro,
-                onChanged: (val) => prefs.toggleProMode(val),
+                onChanged: prefs.isProPlan ? (val) => prefs.toggleProMode(val) : null,
                 secondary: Icon(isPro ? Icons.auto_awesome : Icons.star_border),
               ),
               const SizedBox(height: 8),
