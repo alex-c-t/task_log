@@ -27,6 +27,9 @@ class Task with SyncEntity {
   /// Every [N] recurrence units (e.g., Every 2 days, Every 3 weeks). Default is 1.
   final int recurrenceInterval;
   
+  /// Optional JSON-encoded rule for advanced recurrence (e.g. {"type": "last_day"}).
+  final String? recurrenceRule;
+  
   @override
   String uuid;
   @override
@@ -47,6 +50,7 @@ class Task with SyncEntity {
     this.category,
     this.recurrenceInterval = 1,
     this.isFinished = 0,
+    this.recurrenceRule,
     String? uuid,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -72,6 +76,7 @@ class Task with SyncEntity {
       'category': category,
       'recurrenceInterval': recurrenceInterval,
       'isFinished': isFinished,
+      'recurrenceRule': recurrenceRule,
       ...toMapSync(),
     };
   }
@@ -95,10 +100,46 @@ class Task with SyncEntity {
       category: map['category'],
       recurrenceInterval: map['recurrenceInterval'] ?? 1,
       isFinished: map['isFinished'] ?? 0,
+      recurrenceRule: map['recurrenceRule'],
       uuid: map['uuid'],
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
       updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt']) : null,
       isDeleted: map['isDeleted'] ?? 0,
+    );
+  }
+
+  Task copyWith({
+    int? id,
+    String? title,
+    DateTime? startDate,
+    DateTime? endDate,
+    RecurrenceType? recurrenceType,
+    List<int>? weeklyDays,
+    String? colorHex,
+    String? reminderTime,
+    int? targetCompletions,
+    String? category,
+    int? recurrenceInterval,
+    int? isFinished,
+    String? recurrenceRule,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      recurrenceType: recurrenceType ?? this.recurrenceType,
+      weeklyDays: weeklyDays ?? this.weeklyDays,
+      colorHex: colorHex ?? this.colorHex,
+      reminderTime: reminderTime ?? this.reminderTime,
+      targetCompletions: targetCompletions ?? this.targetCompletions,
+      category: category ?? this.category,
+      recurrenceInterval: recurrenceInterval ?? this.recurrenceInterval,
+      isFinished: isFinished ?? this.isFinished,
+      recurrenceRule: recurrenceRule ?? this.recurrenceRule,
+      uuid: uuid,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 }
