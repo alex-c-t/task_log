@@ -99,7 +99,7 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: const Text('Simulates a server response for Pro Plan'),
                 value: prefs.isProPlan,
                 onChanged: (val) => prefs.updateProPlan(val),
-                activeColor: Colors.orange,
+                activeThumbColor: Colors.orange,
               );
             },
           ),
@@ -126,7 +126,7 @@ class SettingsScreen extends StatelessWidget {
                       Colors.indigo,
                       Colors.amber,
                     ].map((color) {
-                      final isSelected = themeProvider.seedColor.value == color.value;
+                      final isSelected = themeProvider.seedColor.toARGB32() == color.toARGB32();
                       return Padding(
                         padding: const EdgeInsets.only(right: 12),
                         child: GestureDetector(

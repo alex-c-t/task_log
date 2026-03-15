@@ -430,7 +430,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                       onTap: () => _selectDate(context, true),
                     ),
                   ),
-                  if (isPro && !_isTargetGoal)
+                  if (!_isTargetGoal)
                     Expanded(
                       child: ListTile(
                         title: const Text('End Date'),
@@ -588,7 +588,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               if (isPro && _recurrenceType == RecurrenceType.monthly) ...[
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String?>(
-                  value: _recurrenceRule,
+                  initialValue: _recurrenceRule,
                   decoration: const InputDecoration(labelText: 'Monthly Rule', prefixIcon: Icon(Icons.auto_awesome)),
                   items: [
                     const DropdownMenuItem(value: null, child: Text('Same day each month')),

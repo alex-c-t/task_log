@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:task_log/main.dart';
@@ -6,7 +5,6 @@ import 'package:task_log/providers/theme_provider.dart';
 import 'package:task_log/providers/preferences_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:sqflite/sqflite.dart';
 
 void main() {
   setUpAll(() {

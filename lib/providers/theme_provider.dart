@@ -67,6 +67,6 @@ class ThemeProvider with ChangeNotifier {
     await prefs.setString(_themeKey, themeValue);
 
     // Save color
-    await prefs.setInt(_colorKey, _seedColor.value);
+    await prefs.setInt(_colorKey, _seedColor.toARGB32());
   }
 }
