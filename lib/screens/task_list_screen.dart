@@ -28,6 +28,24 @@ class TaskListScreenState extends State<TaskListScreen> {
     'Hobby',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    DatabaseService.instance.addListener(_onDbChanged);
+  }
+
+  @override
+  void dispose() {
+    DatabaseService.instance.removeListener(_onDbChanged);
+    super.dispose();
+  }
+
+  void _onDbChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   void resetToToday() {
     setState(() {
       _focusedMonth = DateTime.now();
