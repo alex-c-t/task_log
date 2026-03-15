@@ -214,6 +214,41 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
     }
   }
 
+  Future<void> _onReorder(int oldIndex, int newIndex, List<Task> activeTasks) async {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+
+    final task = activeTasks.removeAt(oldIndex);
+    activeTasks.insert(newIndex, task);
+
+    double newOrder;
+    if (activeTasks.length == 1) {
+      newOrder = task.sortOrder;
+    } else if (newIndex == 0) {
+      // Moved to top
+      newOrder = activeTasks[1].sortOrder - 1.0;
+    } else if (newIndex == activeTasks.length - 1) {
+      // Moved to bottom
+      newOrder = activeTasks[newIndex - 1].sortOrder + 1.0;
+    } else {
+      // Moved between two items
+      newOrder = (activeTasks[newIndex - 1].sortOrder + activeTasks[newIndex + 1].sortOrder) / 2.0;
+    }
+
+    // Persist to DB
+    await DatabaseService.instance.updateTaskSortOrder(task.id!, newOrder);
+
+    // Refresh all tasks list to ensure UI stays synced without a full reload flicker
+    final updatedTaskIndex = _allTasks.indexWhere((t) => t.id == task.id);
+    if (updatedTaskIndex != -1) {
+      setState(() {
+        _allTasks[updatedTaskIndex] = task.copyWith(sortOrder: newOrder);
+        _allTasks.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      });
+    }
+  }
+
   Future<void> _handleComment(Task task) async {
     final existingComment = _commentsMap[task.id];
     final controller = TextEditingController(text: existingComment?.text ?? '');
@@ -295,7 +330,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
         Expanded(
           child: activeTasks.isEmpty
               ? const Center(child: Text('No tasks for this day.'))
-              : ListView.builder(
+              : ReorderableListView.builder(
+                  onReorder: (oldIndex, newIndex) => _onReorder(oldIndex, newIndex, activeTasks),
                   itemCount: activeTasks.length,
                   itemBuilder: (context, index) {
                     final task = activeTasks[index];
@@ -305,6 +341,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
                     final subTasks = _allSubTasks.where((s) => s.taskId == task.id).toList();
                     
                     return TaskTile(
+                      key: ValueKey(task.id),
                       title: task.title,
                       isCompleted: isCompleted,
                       isHighlighted: task.id == _highlightTaskId,

@@ -34,7 +34,7 @@ class DatabaseService extends ChangeNotifier {
 
     return await openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -62,7 +62,8 @@ class DatabaseService extends ChangeNotifier {
         recurrenceInterval INTEGER NOT NULL DEFAULT 1,
         recurrenceRule TEXT,
         isDirty INTEGER NOT NULL DEFAULT 0,
-        userId TEXT
+        userId TEXT,
+        sortOrder REAL NOT NULL DEFAULT 0.0
       )
     ''');
 
@@ -280,6 +281,13 @@ class DatabaseService extends ChangeNotifier {
         }
       }
     }
+
+    if (oldVersion < 10) {
+      await db.execute('ALTER TABLE tasks ADD COLUMN sortOrder REAL NOT NULL DEFAULT 0.0');
+      // Set distinct sort orders for existing tasks based on their ID + timestamp base
+      final timestampBase = DateTime.now().millisecondsSinceEpoch.toDouble();
+      await db.execute('UPDATE tasks SET sortOrder = ? + CAST(id AS REAL)', [timestampBase]);
+    }
   }
 
   // INTENT-BASED APIs (FIX 2)
@@ -290,8 +298,25 @@ class DatabaseService extends ChangeNotifier {
     final result = await db.query(
       'tasks',
       where: 'isDeleted = 0',
+      orderBy: 'sortOrder ASC, id ASC',
     );
     return result.map((json) => Task.fromMap(json)).toList();
+  }
+
+  /// Updates the sort order for a specific task.
+  Future<void> updateTaskSortOrder(int taskId, double newSortOrder) async {
+    final db = await instance.database;
+    await db.update(
+      'tasks',
+      {
+        'sortOrder': newSortOrder,
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+        'isDirty': 1,
+      },
+      where: 'id = ?',
+      whereArgs: [taskId],
+    );
+    notifyListeners();
   }
 
   /// Fetches a single task by its ID.

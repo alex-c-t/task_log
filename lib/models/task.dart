@@ -29,6 +29,9 @@ class Task with SyncEntity {
   
   /// Optional JSON-encoded rule for advanced recurrence (e.g. {"type": "last_day"}).
   final String? recurrenceRule;
+
+  /// Global sort order for reorderable lists
+  final double sortOrder;
   
   @override
   String uuid;
@@ -57,9 +60,11 @@ class Task with SyncEntity {
     int isDeleted = 0,
     int isDirty = 0,
     String? userId,
+    double? sortOrder,
   }) : uuid = uuid ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now().toUtc(),
-       updatedAt = updatedAt ?? DateTime.now().toUtc() {
+       updatedAt = updatedAt ?? DateTime.now().toUtc(),
+       sortOrder = sortOrder ?? DateTime.now().millisecondsSinceEpoch.toDouble() {
     this.isDeleted = isDeleted;
     this.isDirty = isDirty;
     this.userId = userId;
@@ -81,6 +86,7 @@ class Task with SyncEntity {
       'recurrenceInterval': recurrenceInterval,
       'isFinished': isFinished,
       'recurrenceRule': recurrenceRule,
+      'sortOrder': sortOrder,
       ...toMapSync(),
     };
   }
@@ -111,6 +117,7 @@ class Task with SyncEntity {
       isDeleted: map['isDeleted'] ?? 0,
       isDirty: map['isDirty'] ?? 0,
       userId: map['userId'],
+      sortOrder: map['sortOrder']?.toDouble() ?? 0.0,
     );
   }
 
@@ -131,6 +138,7 @@ class Task with SyncEntity {
     int? isDeleted,
     int? isDirty,
     String? userId,
+    double? sortOrder,
   }) {
     return Task(
       id: id ?? this.id,
@@ -152,6 +160,7 @@ class Task with SyncEntity {
       isDeleted: isDeleted ?? this.isDeleted,
       isDirty: isDirty ?? this.isDirty,
       userId: userId ?? this.userId,
+      sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 }
