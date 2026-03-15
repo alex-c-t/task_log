@@ -313,7 +313,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
             // Date Helper Bar
         Container(
           padding: const EdgeInsets.all(16.0),
-          color: Colors.grey[200],
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [

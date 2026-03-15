@@ -137,7 +137,12 @@ class _MainScreenState extends State<MainScreen> {
           leading: _currentIndex != 0
               ? IconButton(
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () => _onTabTapped(0),
+                  onPressed: () {
+                    if (_currentIndex == 1) {
+                      _calendarKey.currentState?.refresh();
+                    }
+                    _onTabTapped(0);
+                  },
                 )
               : null, // Shows hamburger menu if null and drawer exists
           actions: [
@@ -149,6 +154,11 @@ class _MainScreenState extends State<MainScreen> {
                   MaterialPageRoute(builder: (context) => AddTaskScreen(initialStartDate: date)),
                 );
                 setState(() {});
+                if (_currentIndex == 0) {
+                  _calendarKey.currentState?.refresh();
+                } else if (_currentIndex == 2) {
+                  _taskListKey.currentState?.resetToToday();
+                }
               },
             ),
           ],
