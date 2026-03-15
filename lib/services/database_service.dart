@@ -423,6 +423,7 @@ class DatabaseService extends ChangeNotifier {
         );
       }
     });
+    notifyListeners();
   }
 
   /// Deletes a [Task] and all its associated completion history.
@@ -458,6 +459,7 @@ class DatabaseService extends ChangeNotifier {
         whereArgs: [taskId],
       );
     });
+    notifyListeners();
   }
 
   Future<int> insertTask(Task task) async {
@@ -467,7 +469,9 @@ class DatabaseService extends ChangeNotifier {
     map['isDirty'] = 1;
     // Note: userId will be null for now (local user)
     
-    return await db.insert('tasks', map);
+    final id = await db.insert('tasks', map);
+    notifyListeners();
+    return id;
   }
 
   /// Toggles task completion status for a specific date.
