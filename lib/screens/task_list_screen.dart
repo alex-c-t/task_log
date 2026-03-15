@@ -239,14 +239,14 @@ class TaskListScreenState extends State<TaskListScreen> {
                       return Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text('🔥', style: TextStyle(fontSize: 12)),
-                          const SizedBox(width: 2),
+                          Icon(Icons.check_circle_outline, size: 14, color: Colors.green[700]),
+                          const SizedBox(width: 4),
                           Text(
                             '${snapshot.data}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Colors.orange,
+                              color: Colors.green[700],
                             ),
                           ),
                         ],

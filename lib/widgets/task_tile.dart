@@ -84,23 +84,23 @@ class TaskTile extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.orange.withValues(alpha: 0.1),
+                              color: Colors.green.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('🔥', style: TextStyle(fontSize: 12)),
-                                const SizedBox(width: 2),
-                                Text(
-                                  '$streak',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.orange,
+                                children: [
+                                  Icon(Icons.check_circle, size: 12, color: Colors.green[700]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$streak',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green[700],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
                             ),
                           ),
                         ],

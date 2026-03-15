@@ -570,49 +570,19 @@ class DatabaseService extends ChangeNotifier {
   }
 
   // STREAK API
-  Future<int> getTaskStreak(Task task) async {
+  /// Returns the total number of times this task has been completed.
+  Future<int> getTaskCompletedCount(int taskId) async {
     final db = await instance.database;
-    final completionsRes = await db.query(
-      'completions',
-      where: 'taskId = ? AND isCompleted = 1 AND isDeleted = 0',
-      whereArgs: [task.id],
-      orderBy: 'date DESC',
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM completions WHERE taskId = ? AND isCompleted = 1 AND isDeleted = 0',
+      [taskId],
     );
-    
-    if (completionsRes.isEmpty) return 0;
-    
-    final completedDates = completionsRes.map((c) => c['date'] as String).toSet();
-    
-    int streak = 0;
-    DateTime checkDate = DateTime.now();
-    checkDate = DateTime(checkDate.year, checkDate.month, checkDate.day);
-    
-    final todayStr = DateFormat('yyyy-MM-dd').format(checkDate);
-    bool isTodayScheduled = RecurrenceHelper.isTaskScheduledOnDate(task, checkDate);
-    bool isTodayCompleted = completedDates.contains(todayStr);
-    
-    if (isTodayScheduled && isTodayCompleted) {
-       streak++;
-    }
-    
-    // Walk back from yesterday
-    checkDate = checkDate.subtract(const Duration(days: 1));
-    final normalizedStart = DateTime(task.startDate.year, task.startDate.month, task.startDate.day);
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
 
-    while (!checkDate.isBefore(normalizedStart)) {
-      if (RecurrenceHelper.isTaskScheduledOnDate(task, checkDate)) {
-        final dateStr = DateFormat('yyyy-MM-dd').format(checkDate);
-        if (completedDates.contains(dateStr)) {
-          streak++;
-        } else {
-          break; // Streak broken
-        }
-      }
-      checkDate = checkDate.subtract(const Duration(days: 1));
-      if (streak > 3650) break; 
-    }
-    
-    return streak;
+  // Deprecated: Streaks are currently replaced by total completion count as per user request
+  Future<int> getTaskStreak(Task task) async {
+    return await getTaskCompletedCount(task.id!);
   }
 
   // COMMENTS API (Phase 2.5.1)
