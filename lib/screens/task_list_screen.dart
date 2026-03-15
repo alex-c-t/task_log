@@ -239,14 +239,17 @@ class TaskListScreenState extends State<TaskListScreen> {
                       return Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.check_circle_outline, size: 14, color: Colors.green[700]),
+                          if (task.targetCompletions != null)
+                            const Text('🔥', style: TextStyle(fontSize: 12))
+                          else
+                            Icon(Icons.check_circle_outline, size: 14, color: Colors.green[700]),
                           const SizedBox(width: 4),
                           Text(
                             '${snapshot.data}',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Colors.green[700],
+                              color: task.targetCompletions != null ? Colors.orange : Colors.green[700],
                             ),
                           ),
                         ],

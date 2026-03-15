@@ -11,6 +11,7 @@ class TaskTile extends StatelessWidget {
   final VoidCallback? onCommentTap;
   final bool isHighlighted;
   final int streak;
+  final bool isGoal;
   final String? category;
   final List<SubTask> subTasks;
   final Map<int, bool> subTaskCompletions;
@@ -27,6 +28,7 @@ class TaskTile extends StatelessWidget {
     this.onCommentTap,
     this.isHighlighted = false,
     this.streak = 0,
+    this.isGoal = false,
     this.category,
     this.subTasks = const [],
     this.subTaskCompletions = const {},
@@ -90,14 +92,17 @@ class TaskTile extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.check_circle, size: 12, color: Colors.green[700]),
+                                  if (isGoal)
+                                    const Text('🔥', style: TextStyle(fontSize: 12))
+                                  else
+                                    Icon(Icons.check_circle, size: 12, color: Colors.green[700]),
                                   const SizedBox(width: 4),
                                   Text(
                                     '$streak',
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.green[700],
+                                      color: isGoal ? Colors.orange : Colors.green[700],
                                     ),
                                   ),
                                 ],

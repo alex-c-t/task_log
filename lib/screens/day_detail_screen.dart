@@ -347,6 +347,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
                       isHighlighted: task.id == _highlightTaskId,
                       comment: comment?.text,
                       streak: _streaks[task.id] ?? 0,
+                      isGoal: task.targetCompletions != null,
                       category: task.category,
                       subTasks: subTasks,
                       subTaskCompletions: _subTaskCompletions,
