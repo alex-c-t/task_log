@@ -141,7 +141,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
       final Map<int, int> streaks = {};
       final activeTasks = _allTasks.where((task) {
         final isCompleted = _completionStatus[task.id] ?? false;
-        return RecurrenceHelper.isTaskActiveOnDate(task, date, isCompletedOnDate: isCompleted);
+        return RecurrenceHelper.isTaskActiveOnDate(task, date, isCompletedOnDate: isCompleted, checkRecurrenceForPastGoals: true);
       });
 
       for (var task in activeTasks) {
@@ -303,7 +303,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> with WidgetsBindingOb
     // Filter tasks active on _currentDate
     final activeTasks = _allTasks.where((task) {
       final isCompleted = _completionStatus[task.id] ?? false;
-      return RecurrenceHelper.isTaskActiveOnDate(task, _currentDate, isCompletedOnDate: isCompleted);
+      return RecurrenceHelper.isTaskActiveOnDate(task, _currentDate, isCompletedOnDate: isCompleted, checkRecurrenceForPastGoals: true);
     }).toList();
 
     return Stack(

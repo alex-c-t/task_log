@@ -12,7 +12,12 @@ class RecurrenceHelper {
   /// - Monthly: [date.day] must match [task.startDate.day].
   ///   - If the task started on the 31st, it only appears in months with 31 days.
   ///   - Strict rule: If month doesn't have that day, skip it.
-  static bool isTaskActiveOnDate(Task task, DateTime date, {bool isCompletedOnDate = false}) {
+  static bool isTaskActiveOnDate(
+    Task task,
+    DateTime date, {
+    bool isCompletedOnDate = false,
+    bool checkRecurrenceForPastGoals = false,
+  }) {
     // 1. Check date range (inclusive)
     // Normalize dates to YYYY-MM-DD for comparison
     final normalizedDate = DateTime(date.year, date.month, date.day);
@@ -28,8 +33,13 @@ class RecurrenceHelper {
       final today = DateTime(now.year, now.month, now.day);
       
       if (normalizedDate.isBefore(today)) {
-        // For past dates, only show if it was actually completed that day
-        return isCompletedOnDate;
+        // For past dates, show if it was completed on that day,
+        // OR if checkRecurrenceForPastGoals is true and it matches the recurrence rule.
+        if (isCompletedOnDate) return true;
+        if (checkRecurrenceForPastGoals) {
+          return _checkRecurrence(task, normalizedDate);
+        }
+        return false;
       } else if (normalizedDate.isAfter(today)) {
         // Never artificially clutter the future calendar with open goals
         return false;
