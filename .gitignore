@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# IDE / AI Assistants / Environment files
+.claude/
+.agents/
+.env
+.env.*
+

@@ -1,46 +1,166 @@
+import 'package:uuid/uuid.dart';
+import 'sync_entity_mixin.dart';
 
 enum RecurrenceType { daily, weekly, monthly }
 
-class Task {
+/// Represents a task definition with its recurrence rules and visual properties.
+class Task with SyncEntity {
   final int? id;
   final String title;
   final DateTime startDate;
-  final DateTime endDate;
+  final DateTime? endDate;
+  final int? targetCompletions;
+  final int isFinished;
   final RecurrenceType recurrenceType;
-  final List<int>? weeklyDays; // 1 = Mon, 7 = Sun. Only if recurrenceType == weekly
+  /// 1 = Mon, 7 = Sun. Only used if [recurrenceType] is [RecurrenceType.weekly].
+  final List<int>? weeklyDays;
+  /// The hex color code for this task (e.g., "#E0E0E0").
+  /// Every task must have a color for consistent UI rendering.
+  final String colorHex;
+  
+  /// The time to show a daily reminder for this task (e.g., "09:00").
+  final String? reminderTime;
+
+  /// Optional category/tag for the task (e.g., "Work", "Health").
+  final String? category;
+
+  /// Every [N] recurrence units (e.g., Every 2 days, Every 3 weeks). Default is 1.
+  final int recurrenceInterval;
+  
+  /// Optional JSON-encoded rule for advanced recurrence (e.g. {"type": "last_day"}).
+  final String? recurrenceRule;
+
+  /// Global sort order for reorderable lists
+  final double sortOrder;
+  
+  @override
+  String uuid;
+  @override
+  DateTime createdAt;
+  @override
+  DateTime updatedAt;
 
   Task({
     this.id,
     required this.title,
     required this.startDate,
-    required this.endDate,
+    this.endDate,
     required this.recurrenceType,
     this.weeklyDays,
-  });
+    required this.colorHex,
+    this.reminderTime,
+    this.targetCompletions,
+    this.category,
+    this.recurrenceInterval = 1,
+    this.isFinished = 0,
+    this.recurrenceRule,
+    String? uuid,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    int isDeleted = 0,
+    int isDirty = 0,
+    String? userId,
+    double? sortOrder,
+  }) : uuid = uuid ?? const Uuid().v4(),
+       createdAt = createdAt ?? DateTime.now().toUtc(),
+       updatedAt = updatedAt ?? DateTime.now().toUtc(),
+       sortOrder = sortOrder ?? DateTime.now().millisecondsSinceEpoch.toDouble() {
+    this.isDeleted = isDeleted;
+    this.isDirty = isDirty;
+    this.userId = userId;
+  }
 
+  /// Converts a [Task] into a Map for SQLite persistence.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'title': title,
       'startDate': startDate.toIso8601String().substring(0, 10), // YYYY-MM-DD
-      'endDate': endDate.toIso8601String().substring(0, 10), // YYYY-MM-DD
+      'endDate': endDate != null ? endDate!.toIso8601String().substring(0, 10) : '', // YYYY-MM-DD or empty for goals
       'recurrenceType': recurrenceType.toString().split('.').last,
       'weeklyDays': weeklyDays?.join(','), // Store as "1,3,5"
+      'colorHex': colorHex,
+      'reminderTime': reminderTime,
+      'targetCompletions': targetCompletions,
+      'category': category,
+      'recurrenceInterval': recurrenceInterval,
+      'isFinished': isFinished,
+      'recurrenceRule': recurrenceRule,
+      'sortOrder': sortOrder,
+      ...toMapSync(),
     };
   }
 
+  /// Reconstructs a [Task] from a database Map.
   factory Task.fromMap(Map<String, dynamic> map) {
     return Task(
       id: map['id'],
       title: map['title'],
       startDate: DateTime.parse(map['startDate']),
-      endDate: DateTime.parse(map['endDate']),
+      endDate: map['endDate'] != null && map['endDate'].toString().isNotEmpty ? DateTime.parse(map['endDate']) : null,
       recurrenceType: RecurrenceType.values.firstWhere(
-            (e) => e.toString().split('.').last == map['recurrenceType'],
+        (e) => e.toString().split('.').last == map['recurrenceType'],
       ),
       weeklyDays: map['weeklyDays'] != null && map['weeklyDays'].toString().isNotEmpty
           ? map['weeklyDays'].toString().split(',').map((e) => int.parse(e)).toList()
           : null,
+      colorHex: map['colorHex'] ?? "#E0E0E0", // Fallback for safety during schema migration
+      reminderTime: map['reminderTime'],
+      targetCompletions: map['targetCompletions'],
+      category: map['category'],
+      recurrenceInterval: map['recurrenceInterval'] ?? 1,
+      isFinished: map['isFinished'] ?? 0,
+      recurrenceRule: map['recurrenceRule'],
+      uuid: map['uuid'],
+      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
+      updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt']) : null,
+      isDeleted: map['isDeleted'] ?? 0,
+      isDirty: map['isDirty'] ?? 0,
+      userId: map['userId'],
+      sortOrder: map['sortOrder']?.toDouble() ?? 0.0,
+    );
+  }
+
+  Task copyWith({
+    int? id,
+    String? title,
+    DateTime? startDate,
+    DateTime? endDate,
+    RecurrenceType? recurrenceType,
+    List<int>? weeklyDays,
+    String? colorHex,
+    String? reminderTime,
+    int? targetCompletions,
+    String? category,
+    int? recurrenceInterval,
+    int? isFinished,
+    String? recurrenceRule,
+    int? isDeleted,
+    int? isDirty,
+    String? userId,
+    double? sortOrder,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      recurrenceType: recurrenceType ?? this.recurrenceType,
+      weeklyDays: weeklyDays ?? this.weeklyDays,
+      colorHex: colorHex ?? this.colorHex,
+      reminderTime: reminderTime ?? this.reminderTime,
+      targetCompletions: targetCompletions ?? this.targetCompletions,
+      category: category ?? this.category,
+      recurrenceInterval: recurrenceInterval ?? this.recurrenceInterval,
+      isFinished: isFinished ?? this.isFinished,
+      recurrenceRule: recurrenceRule ?? this.recurrenceRule,
+      uuid: uuid,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
+      isDirty: isDirty ?? this.isDirty,
+      userId: userId ?? this.userId,
+      sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 }
