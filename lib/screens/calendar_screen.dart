@@ -44,6 +44,7 @@ class CalendarScreenState extends State<CalendarScreen> {
     _focusedMonthNotifier = ValueNotifier(_initialMonth);
     _pageController = PageController(initialPage: _currentPage);
     _initialLoadFuture = _preloadData(_focusedMonthNotifier.value);
+    DatabaseService.instance.addListener(refresh);
   }
 
   Future<void> _preloadData(DateTime month) async {
@@ -74,6 +75,7 @@ class CalendarScreenState extends State<CalendarScreen> {
 
   @override
   void dispose() {
+    DatabaseService.instance.removeListener(refresh);
     _pageController.dispose();
     super.dispose();
   }
@@ -106,10 +108,12 @@ class CalendarScreenState extends State<CalendarScreen> {
 
   /// Public method to refresh all loaded data
   void refresh() {
-    setState(() {
-      _refreshCount++;
-      _initialLoadFuture = _preloadData(_focusedMonthNotifier.value);
-    });
+    if (mounted) {
+      setState(() {
+        _refreshCount++;
+        _initialLoadFuture = _preloadData(_focusedMonthNotifier.value);
+      });
+    }
   }
 
   void _onPageChanged(int page) {
